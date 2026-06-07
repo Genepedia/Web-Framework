@@ -11,7 +11,11 @@ body[data-has-full-header="true"] {
   padding-top: calc(var(--header-chrome-height, 55px) + 4px);
 }
 
-body[data-has-full-header="true"]:has(> full-header.portal-index[data-logged-in="false"]) {
+body[data-has-full-header="true"][data-portal-index="true"] {
+  padding-top: 0;
+}
+
+body[data-has-full-header="true"]:has(> full-header.portal-index) {
   padding-top: 0;
 }
 
@@ -916,28 +920,33 @@ full-header.sidebar-disabled .header-chrome__backdrop {
   display: none !important;
 }
 
-/* Portal homepage: logged-out users only see the login control. */
-full-header.portal-index[data-logged-in="false"] .header-container.header-chrome {
+/* Portal homepage: keep the chrome minimal and never expose the sidebar. */
+full-header.portal-index .header-container.header-chrome {
   background: transparent;
   box-shadow: none;
   pointer-events: none;
 }
 
-full-header.portal-index[data-logged-in="false"] .header-chrome__auth {
+full-header.portal-index .header-chrome__auth,
+full-header.portal-index .header-chrome__notifications {
   pointer-events: auto;
 }
 
-body:not(.theme-dark) full-header.portal-index[data-logged-in="false"] .header-container.header-chrome {
+body:not(.theme-dark) full-header.portal-index .header-container.header-chrome {
   box-shadow: none;
 }
 
-full-header.portal-index[data-logged-in="false"] .header-chrome__start,
-full-header.portal-index[data-logged-in="false"] .header-chrome__search-form,
-full-header.portal-index[data-logged-in="false"] .header-chrome__search {
+full-header.portal-index .header-chrome__start,
+full-header.portal-index .header-chrome__search-form,
+full-header.portal-index .header-chrome__search {
   display: none !important;
 }
 
-full-header.portal-index[data-logged-in="false"] .header-chrome__tools {
+full-header.portal-index[data-logged-in="false"] .header-chrome__notifications {
+  display: none !important;
+}
+
+full-header.portal-index .header-chrome__tools {
   flex: 1 1 auto;
   justify-content: flex-end;
 }
@@ -1231,6 +1240,11 @@ const FULL_HEADER_SCRIPT_URL = document.currentScript?.src || '';
 function getHeaderSlogan() {
   return window.App?.getSlogan?.() || window.App?.Slogan || 'Free Geneology Encyclopedia';
 }
+
+function getHeaderLogoPath() {
+  const logoPath = window.App?.getLogoPath?.() || window.App?.LogoPath;
+  return (typeof logoPath === 'string' && logoPath.trim()) ? logoPath.trim() : 'assets/Logo.png';
+}
 const FULL_HEADER_SESSION_KEY = 'app-header-session';
 
 function resolveFrameworkUrl(relativePath) {
@@ -1278,7 +1292,7 @@ function resolveHeaderGitHubApiBase() {
     return configuredBase;
   }
 
-  console.error('Genepedia GitHub API base is not configured. Set `window.App.GitHubApiBase` in `site-info.js`.');
+  console.error('GitHub API base is not configured. Set `window.App.GitHubApiBase` in `site-info.js`.');
   return '';
 }
 
@@ -1490,6 +1504,7 @@ class FullHeader extends HTMLElement {
     this.classList.toggle('sidebar-open', showDesktopSidebar);
     try {
       document.body.setAttribute('data-has-full-header', 'true');
+      document.body.toggleAttribute('data-portal-index', onPortalIndex);
       document.body.classList.toggle('header-chrome-content-offset', showDesktopSidebar);
     } catch (e) {
       // ignore
@@ -1518,6 +1533,8 @@ class FullHeader extends HTMLElement {
         link.href = resolveFromComponent('../pages/search.html');
       } else if (text.includes('random')) {
         link.href = '#';
+      } else if (text.includes('help')) {
+        link.href = resolveFromComponent('../pages/contact.html');
       }
     });
 
@@ -1539,7 +1556,7 @@ class FullHeader extends HTMLElement {
       const slogan = miniHeader?.querySelector('.localized-slogan');
 
       if (logo) {
-        logo.src = resolveFromComponent('../assets/Logo.png');
+        logo.src = resolveSiteUrl(getHeaderLogoPath());
         logo.alt = '';
       }
 
@@ -1585,19 +1602,6 @@ class FullHeader extends HTMLElement {
     this.#initAppSearch();
     this.#initNotifications();
     this.#initAuth();
-  }
-
-  disconnectedCallback() {
-    try {
-      document.body.removeAttribute('data-has-full-header');
-    } catch (e) {
-      // ignore
-    }
-
-    if (this._headerResizeObserver) {
-      this._headerResizeObserver.disconnect();
-      this._headerResizeObserver = null;
-    }
   }
 
   #initNotifications() {
@@ -1689,6 +1693,10 @@ class FullHeader extends HTMLElement {
   }
 
   #waitForAppSearch() {
+    if (window.App?.HeaderSearchEnabled === false) {
+      return Promise.resolve();
+    }
+
     if (window.AppSearch) {
       return Promise.resolve();
     }
@@ -1744,6 +1752,10 @@ class FullHeader extends HTMLElement {
           window.AppSearch?.bindAppSearchForm?.(searchForm);
         })
         .catch((error) => {
+          if (window.App?.HeaderSearchOptional !== false) {
+            return;
+          }
+
           console.error('Failed to initialize header search', error);
         });
     };
@@ -2162,6 +2174,8 @@ class FullHeader extends HTMLElement {
 
     this._headerResizeObserver?.disconnect();
     this._headerResizeObserver = null;
+    document.body.removeAttribute('data-has-full-header');
+    document.body.removeAttribute('data-portal-index');
     document.body.classList.remove('header-chrome-content-offset');
     this.classList.remove('sidebar-open', 'search-open', 'sidebar-disabled', 'portal-index');
     if (this._notificationsDocumentClickHandler) {

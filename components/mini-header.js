@@ -1,4 +1,13 @@
 function getHeaderAssetHref(fileName) {
+  const configuredLogoPath = window.App?.getLogoPath?.() || window.App?.LogoPath;
+  if (fileName === 'Logo.png' && typeof configuredLogoPath === 'string' && configuredLogoPath.trim()) {
+    if (window.App?.resolveSiteUrl) {
+      return window.App.resolveSiteUrl(configuredLogoPath.trim());
+    }
+
+    return configuredLogoPath.trim();
+  }
+
   if (window.App?.resolveSiteUrl) {
     return window.App.resolveSiteUrl(`assets/${fileName}`);
   }
@@ -64,7 +73,7 @@ const MINI_HEADER_TEMPLATE = `
         <span class="central-textlogo__wordmark-accent" data-wordmark="first"></span><span data-wordmark="middle"></span><span class="central-textlogo__wordmark-accent" data-wordmark="last"></span>
       </a>
     </span>
-    <strong class="localized-slogan">The Free Geneology Encyclopedia</strong>
+    <strong class="localized-slogan"></strong>
   </h1>
 </div>
 `;
@@ -215,8 +224,18 @@ function ensureMiniHeaderStyles() {
   document.head.appendChild(styleElement);
 }
 
-const FULL_SLOGAN = 'The Free Geneology Encyclopedia';
-const SHORT_SLOGAN = 'Free Geneology Encyclopedia';
+const DEFAULT_FULL_SLOGAN = 'The Free Geneology Encyclopedia';
+const DEFAULT_SHORT_SLOGAN = 'Free Geneology Encyclopedia';
+
+function getMiniHeaderSlogan() {
+  const slogan = window.App?.getSlogan?.() || window.App?.Slogan;
+  return (typeof slogan === 'string' && slogan.trim()) ? slogan.trim() : DEFAULT_SHORT_SLOGAN;
+}
+
+function getMiniHeaderFullSlogan() {
+  const slogan = window.App?.getFullSlogan?.() || window.App?.FullSlogan;
+  return (typeof slogan === 'string' && slogan.trim()) ? slogan.trim() : `The ${getMiniHeaderSlogan()}`;
+}
 
 const restoreInlineStyles = (element, saved) => {
   Object.entries(saved).forEach(([property, value]) => {
@@ -254,7 +273,7 @@ const sloganFitsOneLine = (slogan, container) => {
     },
   };
 
-  slogan.textContent = FULL_SLOGAN;
+  slogan.textContent = getMiniHeaderFullSlogan();
   slogan.style.whiteSpace = 'normal';
 
   if (!isMobileLayout) {
@@ -284,7 +303,7 @@ const sloganFitsOneLine = (slogan, container) => {
 };
 
 const updateSloganFit = (slogan, container) => {
-  slogan.textContent = sloganFitsOneLine(slogan, container) ? FULL_SLOGAN : SHORT_SLOGAN;
+  slogan.textContent = sloganFitsOneLine(slogan, container) ? getMiniHeaderFullSlogan() : getMiniHeaderSlogan();
 };
 
 class MiniHeader extends HTMLElement {
