@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Genepedia logo</title>
+  <desc id="desc">A blue and green genealogy tree over an open book.</desc>
+  <defs>
+    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#3366cc"/>
+      <stop offset="1" stop-color="#177860"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="236" fill="url(#field)"/>
+  <circle cx="256" cy="256" r="214" fill="none" stroke="#f8f9fa" stroke-width="12"/>
+  <path fill="#fff" d="M124 342c54-24 96-36 132-36s78 12 132 36v54c-54-23-96-34-132-34s-78 11-132 34z" opacity=".94"/>
+  <path fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="22" d="M256 302V164m0 70l-62-44m62 44l62-44m-92 88h60m-92 0h-32m188 0h-32"/>
+  <circle cx="256" cy="146" r="34" fill="#d9eadb"/>
+  <circle cx="184" cy="190" r="28" fill="#d9eadb"/>
+  <circle cx="328" cy="190" r="28" fill="#d9eadb"/>
+  <circle cx="162" cy="278" r="25" fill="#d9eadb"/>
+  <circle cx="350" cy="278" r="25" fill="#d9eadb"/>
+</svg>
