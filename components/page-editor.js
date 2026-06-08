@@ -370,47 +370,393 @@ function extractPageTitle(doc) {
   return text;
 }
 
+function escapeHtmlAttribute(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
 function extractPageContent(html, contentSelector) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  const region = findContentRegion(html, contentSelector);
   const container = doc.querySelector(contentSelector) || doc.querySelector('main');
   return {
     title: extractPageTitle(doc),
-    content: container?.innerHTML?.trim() || '',
+    content: region?.inner ?? container?.innerHTML ?? '',
     document: doc,
   };
 }
 
-function applyPageTitleToDocument(doc, pageTitle) {
+function findContentRegion(html, contentSelector) {
+  const selector = String(contentSelector || '.main-content').trim();
+  const patterns = [];
+
+  if (selector === '.main-content' || selector.includes('main-content')) {
+    patterns.push(
+      /(<main\b[^>]*\bclass="[^"]*\bmain-content\b[^"]*"[^>]*>)([\s\S]*?)(<\/main>)/i,
+      /(<main\b[^>]*>)([\s\S]*?)(<\/main>)/i,
+    );
+  }
+
+  if (selector.startsWith('.')) {
+    const className = selector.slice(1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    patterns.push(
+      new RegExp(`(<([a-z][a-z0-9]*)\\b[^>]*\\bclass="[^"]*\\b${className}\\b[^"]*"[^>]*>)([\\s\\S]*?)(<\\/\\2>)`, 'i'),
+    );
+  }
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match || match.index === undefined) {
+      continue;
+    }
+
+    const open = match[1];
+    const inner = match[match.length - 2];
+    const close = match[match.length - 1];
+    const innerStart = match.index + open.length;
+    const innerEnd = innerStart + inner.length;
+
+    return {
+      open,
+      inner,
+      close,
+      innerStart,
+      innerEnd,
+      end: match.index + match[0].length,
+    };
+  }
+
+  return null;
+}
+
+function blockFingerprint(element) {
+  const tag = element.tagName.toLowerCase();
+  const text = (element.textContent || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${tag}:${text}`;
+}
+
+function preserveContentRegionWhitespace(originalInner, mergedInner) {
+  const original = String(originalInner || '');
+  const merged = String(mergedInner || '');
+  if (!original) {
+    return merged;
+  }
+  if (merged === original) {
+    return original;
+  }
+
+  const lead = (original.match(/^(\s+)/) || ['', ''])[1];
+  const trail = (original.match(/(\s+)$/) || ['', ''])[1];
+  const mergedBody = merged.trim();
+  if (!mergedBody) {
+    return original;
+  }
+  if (original.trim() === mergedBody) {
+    return original;
+  }
+
+  return `${lead}${mergedBody}${trail}`;
+}
+
+function joinOriginalBlocksWithGaps(blocks) {
+  if (blocks.length === 0) {
+    return '';
+  }
+
+  let result = blocks[0].outerHtml;
+  for (let i = 0; i < blocks.length - 1; i += 1) {
+    result += blocks[i].gapAfter ?? '';
+    result += blocks[i + 1].outerHtml;
+  }
+
+  return result;
+}
+
+function buildAppendedSuffixFromEdited(editedInner, editedBlocks, originalBlockCount) {
+  if (editedBlocks.length <= originalBlockCount) {
+    return '';
+  }
+
+  const editTrim = String(editedInner || '').trim();
+  let suffix = '';
+
+  for (let i = originalBlockCount; i < editedBlocks.length; i += 1) {
+    const block = editedBlocks[i].outerHtml;
+    const previous = editedBlocks[i - 1].outerHtml;
+    const previousStart = editTrim.indexOf(previous);
+    if (previousStart === -1) {
+      suffix += `${suffix ? '\n\n' : ''}${block}`;
+      continue;
+    }
+
+    const previousEnd = previousStart + previous.length;
+    const blockStart = editTrim.indexOf(block, previousEnd);
+    const gap = blockStart === -1 ? '\n\n' : editTrim.slice(previousEnd, blockStart);
+    suffix += gap + block;
+  }
+
+  return suffix;
+}
+
+function tryAppendBlocksMerge(originalInner, editedInner) {
+  const originalBlocks = extractContentBlocksExact(originalInner);
+  const editedBlocks = extractContentBlocksFromEditor(editedInner);
+  if (editedBlocks.length <= originalBlocks.length) {
+    return null;
+  }
+
+  for (let i = 0; i < originalBlocks.length; i += 1) {
+    if (originalBlocks[i].fingerprint !== editedBlocks[i].fingerprint) {
+      return null;
+    }
+  }
+
+  const lastOriginalBlock = originalBlocks[originalBlocks.length - 1];
+  const lastBlockStart = originalInner.indexOf(lastOriginalBlock.outerHtml);
+  if (lastBlockStart === -1) {
+    return null;
+  }
+
+  const prefix = originalInner.slice(0, lastBlockStart + lastOriginalBlock.outerHtml.length);
+  const trail = (originalInner.match(/(\s+)$/) || ['', ''])[1];
+  const suffix = buildAppendedSuffixFromEdited(editedInner, editedBlocks, originalBlocks.length);
+
+  return `${prefix}${suffix}${trail}`;
+}
+
+function joinMergedBlocksPreservingGaps(mergedPieces, originalBlocks) {
+  if (mergedPieces.length === 0) {
+    return '';
+  }
+
+  const originalIndexByHtml = new Map(
+    originalBlocks.map((block, index) => [block.outerHtml, index]),
+  );
+
+  let result = '';
+  let lastOriginalIndex = -1;
+
+  mergedPieces.forEach((piece, pieceIndex) => {
+    const originalIndex = originalIndexByHtml.get(piece) ?? -1;
+
+    if (pieceIndex === 0) {
+      result = piece;
+      if (originalIndex !== -1) {
+        lastOriginalIndex = originalIndex;
+      }
+      return;
+    }
+
+    if (originalIndex !== -1 && lastOriginalIndex !== -1 && originalIndex === lastOriginalIndex + 1) {
+      result += originalBlocks[lastOriginalIndex].gapAfter ?? '';
+    } else if (lastOriginalIndex !== -1) {
+      result += originalBlocks[lastOriginalIndex].gapAfter ?? '\n';
+    } else {
+      result += '\n\n';
+    }
+
+    result += piece;
+    if (originalIndex !== -1) {
+      lastOriginalIndex = originalIndex;
+    }
+  });
+
+  return result;
+}
+
+function findSimpleElementEnd(source, openIdx, tag) {
+  const closeTag = `</${tag}>`;
+  const closeIdx = source.indexOf(closeTag, openIdx);
+  if (closeIdx === -1) {
+    return -1;
+  }
+  return closeIdx + closeTag.length;
+}
+
+function extractContentBlocksExact(html) {
+  const source = String(html || '').trim();
+  if (!source) {
+    return [];
+  }
+
+  const doc = new DOMParser().parseFromString(`<div data-root>${source}</div>`, 'text/html');
+  const root = doc.querySelector('[data-root]');
+  if (!root) {
+    return [];
+  }
+
+  let previousEnd = 0;
+  const blocks = [];
+
+  for (const child of root.children) {
+    const tag = child.tagName.toLowerCase();
+    const openIdx = source.indexOf(`<${tag}`, previousEnd);
+    if (openIdx === -1) {
+      blocks.push({
+        fingerprint: blockFingerprint(child),
+        outerHtml: child.outerHTML,
+        gapAfter: '',
+      });
+      continue;
+    }
+
+    if (blocks.length > 0) {
+      blocks[blocks.length - 1].gapAfter = source.slice(previousEnd, openIdx);
+    }
+
+    const endIdx = findSimpleElementEnd(source, openIdx, tag);
+    if (endIdx === -1) {
+      blocks.push({
+        fingerprint: blockFingerprint(child),
+        outerHtml: child.outerHTML,
+        gapAfter: '',
+      });
+      previousEnd = source.length;
+      continue;
+    }
+
+    blocks.push({
+      fingerprint: blockFingerprint(child),
+      outerHtml: source.slice(openIdx, endIdx),
+      gapAfter: '',
+    });
+    previousEnd = endIdx;
+  }
+
+  return blocks;
+}
+
+function extractContentBlocksFromEditor(html) {
+  const source = String(html || '').trim();
+  if (!source) {
+    return [];
+  }
+
+  const doc = new DOMParser().parseFromString(`<div data-root>${source}</div>`, 'text/html');
+  const root = doc.querySelector('[data-root]');
+  if (!root) {
+    return [];
+  }
+
+  return [...root.children].map((child) => ({
+    fingerprint: blockFingerprint(child),
+    outerHtml: child.outerHTML,
+  }));
+}
+
+function mergeBlocksByFingerprint(originalBlocks, editedBlocks) {
+  const originalCount = originalBlocks.length;
+  const editedCount = editedBlocks.length;
+  const lcs = Array.from({ length: originalCount + 1 }, () => Array(editedCount + 1).fill(0));
+
+  for (let i = 1; i <= originalCount; i += 1) {
+    for (let j = 1; j <= editedCount; j += 1) {
+      if (originalBlocks[i - 1].fingerprint === editedBlocks[j - 1].fingerprint) {
+        lcs[i][j] = lcs[i - 1][j - 1] + 1;
+      } else {
+        lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
+      }
+    }
+  }
+
+  const merged = [];
+  let i = originalCount;
+  let j = editedCount;
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && originalBlocks[i - 1].fingerprint === editedBlocks[j - 1].fingerprint) {
+      merged.push(originalBlocks[i - 1].outerHtml);
+      i -= 1;
+      j -= 1;
+    } else if (j > 0 && (i === 0 || lcs[i][j - 1] >= lcs[i - 1][j])) {
+      merged.push(editedBlocks[j - 1].outerHtml);
+      j -= 1;
+    } else {
+      i -= 1;
+    }
+  }
+
+  return merged.reverse();
+}
+
+function mergeContentPreservingUnchanged(originalHtml, editedHtml) {
+  const original = String(originalHtml || '');
+  const edited = String(editedHtml || '').trim();
+  if (!edited) {
+    return original;
+  }
+  if (!original) {
+    return edited;
+  }
+  if (original.trim() === edited) {
+    return original;
+  }
+
+  const appendMerge = tryAppendBlocksMerge(original, edited);
+  if (appendMerge !== null) {
+    return appendMerge;
+  }
+
+  const originalBlocks = extractContentBlocksExact(original);
+  const editedBlocks = extractContentBlocksFromEditor(edited);
+  if (originalBlocks.length === 0) {
+    return preserveContentRegionWhitespace(original, edited);
+  }
+  if (editedBlocks.length === 0) {
+    return original;
+  }
+
+  const merged = mergeBlocksByFingerprint(originalBlocks, editedBlocks);
+  const mergedInner = joinMergedBlocksPreservingGaps(merged, originalBlocks);
+  return preserveContentRegionWhitespace(original, mergedInner);
+}
+
+function applyPageTitleToHtmlString(html, pageTitle) {
   const cleanTitle = String(pageTitle || '').trim();
   if (!cleanTitle) {
-    return;
+    return html;
   }
 
   const brandToken = getBrandToken();
   const brandedTitle = `${brandToken} - ${cleanTitle}`;
-  const titleEl = doc.querySelector('title');
-  if (titleEl) {
-    titleEl.setAttribute('data-brand-template', brandedTitle);
-    titleEl.textContent = brandedTitle;
-  }
+  let result = html;
 
-  const toolbar = doc.querySelector('full-page-toolbar');
-  if (toolbar) {
-    toolbar.setAttribute('title', cleanTitle);
-  }
+  result = result.replace(
+    /<title\b[^>]*>[\s\S]*?<\/title>/i,
+    `<title data-brand-template="${escapeHtmlAttribute(brandedTitle)}"></title>`,
+  );
+
+  result = result.replace(
+    /(<full-page-toolbar\b[^>]*\btitle=)(["'])(.*?)\2/i,
+    `$1$2${escapeHtmlAttribute(cleanTitle)}$2`,
+  );
+
+  return result;
 }
 
 function replacePageContent(html, contentSelector, nextContent, pageTitle) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const container = doc.querySelector(contentSelector) || doc.querySelector('main');
-  if (!container) {
+  const region = findContentRegion(html, contentSelector);
+  if (!region) {
     throw new Error('Could not find the page content container.');
   }
-  container.innerHTML = nextContent;
-  if (pageTitle) {
-    applyPageTitleToDocument(doc, pageTitle);
+
+  const mergedContent = mergeContentPreservingUnchanged(region.inner, nextContent);
+  let result = html;
+
+  if (mergedContent !== region.inner) {
+    result = `${html.slice(0, region.innerStart)}${mergedContent}${html.slice(region.innerEnd)}`;
   }
-  return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+
+  if (pageTitle) {
+    result = applyPageTitleToHtmlString(result, pageTitle);
+  }
+
+  return result;
 }
 
 function formatPageTitle(sourcePath, extractedTitle) {
@@ -433,6 +779,7 @@ class PageEditor extends HTMLElement {
     this.__quill = null;
     this.__codeMirror = null;
     this.__originalHtml = '';
+    this.__originalContentHtml = '';
     this.__sourcePath = '';
     this.__pageTitle = 'Page';
     this.__savedPageTitle = '';
@@ -527,7 +874,7 @@ class PageEditor extends HTMLElement {
   #setSavedBaseline() {
     this.#flushPendingSync();
     this.__savedPageTitle = this.#getPageTitle();
-    this.__savedContentHtml = this.#getVisualHtml();
+    this.__savedContentHtml = this.__originalContentHtml || this.#getVisualHtml();
     this.#setDirty(false);
   }
 
@@ -551,7 +898,11 @@ class PageEditor extends HTMLElement {
     }
 
     const titleChanged = this.#getPageTitle() !== this.__savedPageTitle;
-    const contentChanged = this.#getVisualHtml() !== this.__savedContentHtml;
+    const mergedContent = mergeContentPreservingUnchanged(
+      this.__originalContentHtml || this.__savedContentHtml,
+      this.#getSourceHtml(),
+    );
+    const contentChanged = mergedContent !== (this.__originalContentHtml || this.__savedContentHtml);
     this.#setDirty(titleChanged || contentChanged);
   }
 
@@ -677,6 +1028,7 @@ class PageEditor extends HTMLElement {
 
       this.__originalHtml = await response.text();
       const extracted = extractPageContent(this.__originalHtml, this.__contentSelector);
+      this.__originalContentHtml = extracted.content;
       this.__pageTitle = titleOverride || formatPageTitle(sourcePath, extracted.title);
       if (titleInput) titleInput.value = this.__pageTitle;
       document.title = `Edit ${this.__pageTitle}`;
@@ -816,11 +1168,12 @@ class PageEditor extends HTMLElement {
     if (!this.__originalHtml) {
       throw new Error('The original page has not finished loading yet.');
     }
+    const titleChanged = this.#getPageTitle() !== this.__savedPageTitle;
     return replacePageContent(
       this.__originalHtml,
       this.__contentSelector,
       this.#getSourceHtml(),
-      this.#getPageTitle(),
+      titleChanged ? this.#getPageTitle() : null,
     );
   }
 
@@ -974,6 +1327,11 @@ class PageEditor extends HTMLElement {
         return;
       }
 
+      this.__originalHtml = fullHtml;
+      const publishedRegion = findContentRegion(fullHtml, this.__contentSelector);
+      if (publishedRegion) {
+        this.__originalContentHtml = publishedRegion.inner;
+      }
       this.#setSavedBaseline();
       this.#closePublishDialog();
       const prUrl = payload.pull_request?.url || '';
