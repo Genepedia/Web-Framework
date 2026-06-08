@@ -507,9 +507,19 @@ class FullPageToolbar extends HTMLElement {
 		document.addEventListener('keydown', this.__boundKeyDown);
 		this.__boundHashChange = this.#onHashChange?.bind(this);
 		if (this.__boundHashChange) window.addEventListener('hashchange', this.__boundHashChange);
+		this.__boundPageTabSync = (event) => {
+			if ((this.getAttribute('variant') || '').trim().toLowerCase() === 'page') {
+				this.#syncPageTabSelection(this.querySelector('.people-page__tab-list'), event?.detail?.tab);
+			}
+		};
+		window.addEventListener('page-tab:sync', this.__boundPageTabSync);
 	}
 
 	disconnectedCallback() {
+		if (this.__boundPageTabSync) {
+			window.removeEventListener('page-tab:sync', this.__boundPageTabSync);
+			this.__boundPageTabSync = null;
+		}
 		if (this.__boundOnClick) {
 			this.removeEventListener('click', this.__boundOnClick);
 			this.__boundOnClick = null;
@@ -589,7 +599,8 @@ class FullPageToolbar extends HTMLElement {
 		if (tabsList) {
 			if (variant === 'page') {
 				// Neutral page variant shows a 'Page' tab and the 'Changes' tab.
-				tabsList.innerHTML = String.raw`
+				if (!tabsList.querySelector('[data-tab="page"]')) {
+					tabsList.innerHTML = String.raw`
 					<li class="people-page__tab-item" role="presentation">
 						<a class="people-page__tab-link" href="#page" data-tab="page" role="tab" aria-selected="false">
 							<i class="bi bi-file-earmark-text" aria-hidden="true"></i>
@@ -603,20 +614,9 @@ class FullPageToolbar extends HTMLElement {
 						</a>
 					</li>
 				`;
-
-				// Select tab based on current hash (defaults to 'page')
-				try {
-					const currentHash = (window.location.hash || '').replace(/^#/, '');
-					const selectedTab = (currentHash === 'changes') ? 'changes' : 'page';
-					tabsList.querySelectorAll('.people-page__tab-link').forEach((link) => {
-						const isSelected = link.dataset.tab === selectedTab;
-						const tabItem = link.closest('.people-page__tab-item');
-						tabItem?.classList.toggle('is-selected', isSelected);
-						link.setAttribute('aria-selected', isSelected ? 'true' : 'false');
-					});
-				} catch (e) {
-					// ignore selection errors
 				}
+
+				this.#syncPageTabSelection(tabsList);
 			} else if (variant === 'notifications') {
 				// Notifications variant: messages, mentions, matches, edit requests
 				const notifTabs = String.raw`
@@ -702,6 +702,27 @@ class FullPageToolbar extends HTMLElement {
 		}
 
 		this.#syncDownloadMenu();
+	}
+
+	#syncPageTabSelection(tabsList = this.querySelector('.people-page__tab-list'), selectedTab) {
+		if (!tabsList) {
+			return;
+		}
+
+		try {
+			if (!selectedTab) {
+				const currentHash = (window.location.hash || '').replace(/^#/, '');
+				selectedTab = currentHash === 'changes' ? 'changes' : 'page';
+			}
+			tabsList.querySelectorAll('.people-page__tab-link[data-tab]').forEach((link) => {
+				const isSelected = link.dataset.tab === selectedTab;
+				const tabItem = link.closest('.people-page__tab-item');
+				tabItem?.classList.toggle('is-selected', isSelected);
+				link.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+			});
+		} catch (e) {
+			// ignore selection errors
+		}
 	}
 
 	#getDownloadContext() {

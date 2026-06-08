@@ -1191,12 +1191,25 @@ hr {
 
 .search-container button,
 .search-container a.app-search-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 4.4rem;
+    width: 4.4rem;
+    min-width: 4.4rem;
     margin: 0;
     border-radius: 0 var(--border-radius-base) var(--border-radius-base) 0;
-    padding: .8rem 1.6rem;
+    padding: 0;
     font-size: 1.6rem;
+    line-height: 1;
     z-index: var(--ss-button-z-index)
+}
+
+.search-container button .bi,
+.search-container a.app-search-submit .bi {
+    display: block;
+    line-height: 1;
+    font-size: 1.6rem
 }
 
 .search-container input[type=search]::search-results-button,
@@ -1466,13 +1479,18 @@ a.suggestion-link:focus {
     visibility: hidden;
     max-height: 0;
     width: 80%;
-    margin: -1.6rem auto 4.8rem;
+    margin: 0 auto 4.8rem;
     transition: max-height .5s ease-out .16s, visibility .5s ease-in 1s
+}
+
+.lang-list-dropdown[open] .lang-list-button-wrapper {
+    margin-bottom: 1rem;
 }
 
 .lang-list-dropdown[open] .lang-list-container {
     visibility: visible;
     max-height: 10000px;
+    margin-top: 0;
     transition: max-height 1s ease-in .2s, visibility 1000s ease-in 0ms
 }
 
@@ -1531,7 +1549,7 @@ a.suggestion-link:focus {
 }
 
 .lang-list-button {
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.04);
     display: inline-flex;
     align-items: center;
     box-sizing: border-box;
@@ -1543,9 +1561,9 @@ a.suggestion-link:focus {
     height: 4.4rem;
     min-height: 4.4rem;
     outline: 1.6rem solid transparent;
-    border: var(--border-base);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--border-radius-base);
-    color: var(--color-progressive);
+    color: #eaecf0;
     font-size: 1.4rem;
     font-weight: 700;
     line-height: 1;
@@ -1553,8 +1571,8 @@ a.suggestion-link:focus {
 }
 
 .lang-list-button:hover {
-    background-color: transparent;
-    border-color: var(--border-color-base)
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2)
 }
 
 .lang-list-button-wrapper:focus .lang-list-button,
@@ -1564,9 +1582,10 @@ a.suggestion-link:focus {
 }
 
 .lang-list-dropdown[open] .lang-list-button {
-    background-color: transparent;
-    outline: 1px solid var(--border-color-inverted);
-    border-color: var(--border-color-interactive);
+    background-color: rgba(255, 255, 255, 0.04);
+    outline: 1.6rem solid transparent;
+    border-color: rgba(255, 255, 255, 0.2);
+    border-radius: var(--border-radius-base);
     transition-delay: 0s
 }
 
@@ -2202,6 +2221,18 @@ body:not(.theme-dark) .search-container .styled-select .hide-arrow select {
 body:not(.theme-dark) .search-container button,
 body:not(.theme-dark) .search-container a.app-search-submit {
     border-left: 0;
+}
+
+body:not(.theme-dark) .lang-list-button,
+body:not(.theme-dark) .lang-list-dropdown[open] .lang-list-button {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.14);
+    color: #202122;
+}
+
+body:not(.theme-dark) .lang-list-button:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.14);
 }
 
 /* Light-mode overrides: ensure the top wordmark and central logo contrast on light backgrounds */
