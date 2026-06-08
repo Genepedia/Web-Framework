@@ -14,9 +14,6 @@ const PAGE_EDITOR_SCRIPT_URL = (() => {
   return window.location.href;
 })();
 
-const QUILL_VERSION = '2.0.3';
-const QUILL_CSS_URL = `https://cdn.jsdelivr.net/npm/quill@${QUILL_VERSION}/dist/quill.snow.css`;
-const QUILL_JS_URL = `https://cdn.jsdelivr.net/npm/quill@${QUILL_VERSION}/dist/quill.js`;
 const CODEMIRROR_VERSION = '5.65.18';
 const CODEMIRROR_BASE = `https://cdnjs.cloudflare.com/ajax/libs/codemirror/${CODEMIRROR_VERSION}`;
 const JS_BEAUTIFY_URL = 'https://cdn.jsdelivr.net/npm/js-beautify@1.15.4/js/lib/beautify-html.min.js';
@@ -53,11 +50,8 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
 
   <div class="page-editor__toolbar-row">
     <div class="page-editor__mode-tabs" role="tablist" aria-label="Editor mode">
-      <button type="button" class="page-editor__mode-tab is-active" data-mode="preview" role="tab" aria-selected="true">
-        Preview
-      </button>
-      <button type="button" class="page-editor__mode-tab" data-mode="visual" role="tab" aria-selected="false">
-        Visual
+      <button type="button" class="page-editor__mode-tab is-active" data-mode="page" role="tab" aria-selected="true">
+        Page
       </button>
       <button type="button" class="page-editor__mode-tab" data-mode="source" role="tab" aria-selected="false">
         HTML
@@ -66,11 +60,30 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
   </div>
 
   <div class="page-editor__workspace">
-    <div class="page-editor__panel page-editor__panel--preview is-active" data-panel="preview">
-      <div class="page-editor__preview main-content" aria-label="Page preview"></div>
-    </div>
-    <div class="page-editor__panel page-editor__panel--visual" data-panel="visual" hidden>
-      <div class="page-editor__quill"></div>
+    <div class="page-editor__panel page-editor__panel--page is-active" data-panel="page">
+      <div class="page-editor__format-toolbar" role="toolbar" aria-label="Formatting">
+        <button type="button" class="page-editor__format-button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline" aria-hidden="true"></i></button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
+        <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="h2" title="Heading 2">H2</button>
+        <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="h3" title="Heading 3">H3</button>
+        <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="p" title="Paragraph">¶</button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
+        <button type="button" class="page-editor__format-button" data-cmd="insertUnorderedList" title="Bullet list"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="insertOrderedList" title="Numbered list"><i class="bi bi-list-ol" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="blockquote" title="Blockquote"><i class="bi bi-quote" aria-hidden="true"></i></button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
+        <button type="button" class="page-editor__format-button" data-action="insert-link" title="Link"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-action="insert-image" title="Image"><i class="bi bi-image" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-action="insert-table" title="Table"><i class="bi bi-table" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-action="insert-columns" title="Two columns"><i class="bi bi-layout-three-columns" aria-hidden="true"></i></button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
+        <button type="button" class="page-editor__format-button" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser" aria-hidden="true"></i></button>
+      </div>
+      <div class="page-editor__page-frame">
+        <div class="page-editor__page-content" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Editable page content"></div>
+      </div>
     </div>
     <div class="page-editor__panel page-editor__panel--source" data-panel="source" hidden>
       <div class="page-editor__source-bar">
@@ -117,7 +130,10 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
 </div>
 `;
 
-let quillLoaderPromise = null;
+const INSERT_TABLE_HTML = '<table class="site-table"><thead><tr><th scope="col">Header</th><th scope="col">Header</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>';
+
+const INSERT_COLUMNS_HTML = '<div class="home-page__grid"><article class="card home-page__tile"><p>Column 1</p></article><article class="card home-page__tile"><p>Column 2</p></article></div>';
+
 let codeMirrorLoaderPromise = null;
 let beautifyLoaderPromise = null;
 
@@ -137,7 +153,13 @@ function normalizeSitePath(path) {
 
 function isAllowedEditorSource(path) {
   const normalized = normalizeSitePath(path);
-  return /^pages\/[a-zA-Z0-9_./-]+\.html$/.test(normalized);
+  return /^(pages|people)\/[a-zA-Z0-9_./-]+\.html$/.test(normalized);
+}
+
+function parseClassFromOpenTag(openTag) {
+  if (!openTag) return 'main-content';
+  const match = String(openTag).match(/\bclass=(["'])(.*?)\1/i);
+  return match ? match[2].trim() : 'main-content';
 }
 
 function getEditorQueryParams() {
@@ -212,83 +234,6 @@ function loadScript(src) {
     script.addEventListener('error', reject, { once: true });
     document.head.append(script);
   });
-}
-
-const QUILL_FONT_OPTIONS = [
-  'sans-serif',
-  'serif',
-  'monospace',
-  'linux-libertine',
-  'arial',
-  'georgia',
-  'verdana',
-];
-
-const QUILL_SIZE_OPTIONS = ['small', false, 'large', 'huge'];
-
-function configureQuillFormats(Quill) {
-  if (Quill.__pageEditorConfigured) {
-    return;
-  }
-  Quill.__pageEditorConfigured = true;
-
-  const FontClass = Quill.import('attributors/class/font');
-  FontClass.whitelist = QUILL_FONT_OPTIONS;
-  Quill.register(FontClass, true);
-
-  const SizeClass = Quill.import('attributors/class/size');
-  SizeClass.whitelist = QUILL_SIZE_OPTIONS.filter(Boolean);
-  Quill.register(SizeClass, true);
-}
-
-function createQuillToolbarConfig() {
-  return {
-    container: [
-      [{ header: [2, 3, false] }],
-      [{ font: QUILL_FONT_OPTIONS }],
-      [{ size: QUILL_SIZE_OPTIONS }],
-      ['bold', 'italic', 'underline'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      ['link', 'image', 'blockquote'],
-      ['clean'],
-    ],
-    handlers: {
-      image() {
-        const url = window.prompt('Enter the image URL');
-        if (!url?.trim()) {
-          return;
-        }
-
-        const trimmed = url.trim();
-        try {
-          new URL(trimmed, window.location.href);
-        } catch (error) {
-          window.alert('Please enter a valid image URL.');
-          return;
-        }
-
-        const range = this.quill.getSelection(true);
-        this.quill.insertEmbed(range.index, 'image', trimmed, 'user');
-        this.quill.setSelection(range.index + 1);
-      },
-    },
-  };
-}
-
-function ensureQuill() {
-  if (window.Quill) {
-    configureQuillFormats(window.Quill);
-    return Promise.resolve(window.Quill);
-  }
-  if (!quillLoaderPromise) {
-    quillLoaderPromise = loadStylesheet(QUILL_CSS_URL, 'page-editor-quill-theme')
-      .then(() => loadScript(QUILL_JS_URL))
-      .then(() => {
-        configureQuillFormats(window.Quill);
-        return window.Quill;
-      });
-  }
-  return quillLoaderPromise;
 }
 
 function ensureCodeMirror() {
@@ -384,8 +329,28 @@ function extractPageContent(html, contentSelector) {
   return {
     title: extractPageTitle(doc),
     content: region?.inner ?? container?.innerHTML ?? '',
+    mainClassName: parseClassFromOpenTag(region?.open) || container?.className?.trim() || 'main-content',
     document: doc,
   };
+}
+
+function hardenLiveEditorRoot(root) {
+  if (!root) return;
+  root.querySelectorAll('form').forEach((form) => {
+    form.addEventListener('submit', (event) => event.preventDefault());
+  });
+  root.querySelectorAll('a[href]').forEach((link) => {
+    link.addEventListener('click', (event) => event.preventDefault());
+  });
+}
+
+function applyBrandingToNode(node) {
+  if (!node) return;
+  try {
+    window.App?.applyBranding?.(node);
+  } catch (error) {
+    // ignore
+  }
 }
 
 function findContentRegion(html, contentSelector) {
@@ -776,19 +741,19 @@ class PageEditor extends HTMLElement {
     if (this.__rendered) return;
     this.__rendered = true;
     this.innerHTML = PAGE_EDITOR_TEMPLATE;
-    this.__quill = null;
     this.__codeMirror = null;
     this.__originalHtml = '';
     this.__originalContentHtml = '';
+    this.__mainClassName = 'main-content';
     this.__sourcePath = '';
     this.__pageTitle = 'Page';
     this.__savedPageTitle = '';
     this.__savedContentHtml = '';
     this.__session = null;
-    this.__activeMode = 'preview';
+    this.__activeMode = 'page';
     this.__dirty = false;
     this.__syncing = false;
-    this.__visualSyncTimer = null;
+    this.__liveSyncTimer = null;
     this.__sourceSyncTimer = null;
     this.__contentSelector = this.getAttribute('content-selector')?.trim() || '.main-content';
     this.__beforeUnloadHandler = null;
@@ -817,7 +782,20 @@ class PageEditor extends HTMLElement {
     const root = this.querySelector('.page-editor');
     if (!root) return;
 
+    root.addEventListener('mousedown', (event) => {
+      if (event.target.closest('.page-editor__format-toolbar button')) {
+        event.preventDefault();
+      }
+    });
+
     root.addEventListener('click', (event) => {
+      const formatButton = event.target.closest('.page-editor__format-toolbar [data-cmd], .page-editor__format-toolbar [data-action]');
+      if (formatButton) {
+        event.preventDefault();
+        this.#handleFormatAction(formatButton);
+        return;
+      }
+
       const button = event.target.closest('[data-action], [data-mode]');
       if (!button) return;
 
@@ -843,9 +821,6 @@ class PageEditor extends HTMLElement {
       this.__pageTitle = this.#getPageTitle();
       document.title = `Edit ${this.__pageTitle}`;
       this.#updateDirtyState();
-      if (this.__activeMode === 'preview') {
-        this.#updatePreviewPanel();
-      }
     });
   }
 
@@ -859,42 +834,40 @@ class PageEditor extends HTMLElement {
   }
 
   #flushPendingSync() {
-    if (this.__visualSyncTimer) {
-      clearTimeout(this.__visualSyncTimer);
-      this.__visualSyncTimer = null;
-      this.#syncVisualToSource();
+    if (this.__liveSyncTimer) {
+      clearTimeout(this.__liveSyncTimer);
+      this.__liveSyncTimer = null;
+      this.#syncLiveToSource();
     }
     if (this.__sourceSyncTimer) {
       clearTimeout(this.__sourceSyncTimer);
       this.__sourceSyncTimer = null;
-      this.#syncSourceToVisual();
+      this.#syncSourceToLive();
     }
   }
 
   #setSavedBaseline() {
     this.#flushPendingSync();
     this.__savedPageTitle = this.#getPageTitle();
-    this.__savedContentHtml = this.__originalContentHtml || this.#getVisualHtml();
+    this.__savedContentHtml = this.__originalContentHtml || this.#getLiveHtml();
     this.#setDirty(false);
   }
 
   #updateDirtyState() {
-    if (!this.__quill) {
+    const { pageContent } = this.#els();
+    if (!pageContent) {
       this.#setDirty(false);
       return;
     }
 
-    if (this.__visualSyncTimer) {
-      clearTimeout(this.__visualSyncTimer);
-      this.__visualSyncTimer = null;
-      this.#syncVisualToSource();
+    if (this.__liveSyncTimer) {
+      clearTimeout(this.__liveSyncTimer);
+      this.__liveSyncTimer = null;
+      this.#syncLiveToSource();
     }
     if (this.__sourceSyncTimer) {
       clearTimeout(this.__sourceSyncTimer);
       this.__sourceSyncTimer = null;
-    }
-    if (this.__activeMode === 'source' && this.__codeMirror) {
-      this.#syncSourceToVisual();
     }
 
     const titleChanged = this.#getPageTitle() !== this.__savedPageTitle;
@@ -958,13 +931,11 @@ class PageEditor extends HTMLElement {
       titleInput: this.querySelector('.page-editor__title-input'),
       source: this.querySelector('.page-editor__source code'),
       status: this.querySelector('.page-editor__status'),
-      quillMount: this.querySelector('.page-editor__quill'),
+      pageContent: this.querySelector('.page-editor__page-content'),
       codeMount: this.querySelector('.page-editor__codemirror'),
       unsavedNotice: this.querySelector('.page-editor__unsaved-notice'),
-      visualPanel: this.querySelector('[data-panel="visual"]'),
+      pagePanel: this.querySelector('[data-panel="page"]'),
       sourcePanel: this.querySelector('[data-panel="source"]'),
-      previewPanel: this.querySelector('[data-panel="preview"]'),
-      previewBody: this.querySelector('.page-editor__preview'),
       modeTabs: [...this.querySelectorAll('.page-editor__mode-tab')],
       publishDialog: this.querySelector('.page-editor__publish-dialog'),
       publishForm: this.querySelector('.page-editor__publish-form'),
@@ -1001,11 +972,12 @@ class PageEditor extends HTMLElement {
     const sourcePath = normalizeSitePath(this.getAttribute('source') || params.get('source') || '');
     const returnPath = normalizeSitePath(this.getAttribute('return') || params.get('return') || sourcePath);
     const titleOverride = this.getAttribute('title')?.trim() || '';
-    const { back, titleInput, source, quillMount } = this.#els();
+    const { back, titleInput, source, pageContent } = this.#els();
 
     if (!sourcePath || !isAllowedEditorSource(sourcePath)) {
-      if (quillMount) {
-        quillMount.innerHTML = '<p class="page-editor__error">A valid <code>source</code> page path is required, for example <code>pages/privacy_policy.html</code>.</p>';
+      if (pageContent) {
+        pageContent.innerHTML = '<p class="page-editor__error">A valid <code>source</code> page path is required, for example <code>pages/privacy_policy.html</code>.</p>';
+        pageContent.removeAttribute('contenteditable');
       }
       this.#setStatus('This editor could not determine which page to load.', 'error');
       return;
@@ -1029,37 +1001,111 @@ class PageEditor extends HTMLElement {
       this.__originalHtml = await response.text();
       const extracted = extractPageContent(this.__originalHtml, this.__contentSelector);
       this.__originalContentHtml = extracted.content;
+      this.__mainClassName = extracted.mainClassName || 'main-content';
       this.__pageTitle = titleOverride || formatPageTitle(sourcePath, extracted.title);
       if (titleInput) titleInput.value = this.__pageTitle;
       document.title = `Edit ${this.__pageTitle}`;
 
-      const Quill = await ensureQuill();
-      if (!this.__quill) {
-        this.__quill = new Quill(quillMount, {
-          theme: 'snow',
-          modules: {
-            toolbar: createQuillToolbarConfig(),
-          },
-        });
-        this.__quill.on('text-change', () => {
-          if (this.__syncing) return;
-          this.#updateDirtyState();
-          this.#scheduleVisualSync();
-        });
-      }
-
-      this.__quill.root.classList.add('page-editor__document');
-      this.__quill.clipboard.dangerouslyPasteHTML(extracted.content || '<p></p>');
+      this.#populateLiveEditor(extracted.content || '<p></p>');
       this.#setSavedBaseline();
-      this.#updatePreviewPanel();
-      this.#setStatus('Edit the page title, preview your changes, or switch to Visual or HTML. Save Changes submits them for review on GitHub.');
+      this.#setStatus('Edit the page directly — it uses the same layout and styles as the live page. Use HTML for advanced markup.');
     } catch (error) {
       console.error(error);
-      if (quillMount) {
-        quillMount.innerHTML = `<p class="page-editor__error">${escapeHtml(error.message || 'Could not load this page.')}</p>`;
+      if (pageContent) {
+        pageContent.innerHTML = `<p class="page-editor__error">${escapeHtml(error.message || 'Could not load this page.')}</p>`;
+        pageContent.removeAttribute('contenteditable');
       }
       this.#setStatus(error.message || 'Could not load this page.', 'error');
     }
+  }
+
+  #populateLiveEditor(html) {
+    const { pageContent } = this.#els();
+    if (!pageContent) return;
+
+    pageContent.className = `${this.__mainClassName} page-editor__page-content`;
+    pageContent.innerHTML = html || '<p></p>';
+    applyBrandingToNode(pageContent);
+    hardenLiveEditorRoot(pageContent);
+
+    if (!pageContent.__pageEditorBound) {
+      pageContent.__pageEditorBound = true;
+      pageContent.addEventListener('input', () => {
+        if (this.__syncing) return;
+        this.#updateDirtyState();
+        this.#scheduleLiveSync();
+      });
+    }
+  }
+
+  #handleFormatAction(button) {
+    const { pageContent } = this.#els();
+    if (!pageContent || this.__activeMode !== 'page') return;
+
+    pageContent.focus();
+
+    const action = button.dataset.action;
+    if (action === 'insert-link') {
+      const url = window.prompt('Enter the link URL');
+      if (!url?.trim()) return;
+      try {
+        new URL(url.trim(), window.location.href);
+      } catch (error) {
+        window.alert('Please enter a valid URL.');
+        return;
+      }
+      document.execCommand('createLink', false, url.trim());
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+      return;
+    }
+
+    if (action === 'insert-image') {
+      const url = window.prompt('Enter the image URL');
+      if (!url?.trim()) return;
+      try {
+        new URL(url.trim(), window.location.href);
+      } catch (error) {
+        window.alert('Please enter a valid image URL.');
+        return;
+      }
+      const safeUrl = escapeHtmlAttribute(url.trim());
+      document.execCommand('insertHTML', false, `<img src="${safeUrl}" alt="">`);
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+      return;
+    }
+
+    if (action === 'insert-table') {
+      document.execCommand('insertHTML', false, INSERT_TABLE_HTML);
+      hardenLiveEditorRoot(pageContent);
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+      return;
+    }
+
+    if (action === 'insert-columns') {
+      document.execCommand('insertHTML', false, INSERT_COLUMNS_HTML);
+      hardenLiveEditorRoot(pageContent);
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+      return;
+    }
+
+    const cmd = button.dataset.cmd;
+    if (!cmd) return;
+
+    if (cmd === 'blockquote') {
+      document.execCommand('formatBlock', false, 'blockquote');
+    } else if (cmd === 'formatBlock') {
+      const tag = button.dataset.value || 'p';
+      document.execCommand('formatBlock', false, tag);
+    } else {
+      document.execCommand(cmd, false, button.dataset.value || null);
+    }
+
+    this.#updateDirtyState();
+    this.#scheduleLiveSync();
   }
 
   async #ensureCodeMirror() {
@@ -1083,11 +1129,11 @@ class PageEditor extends HTMLElement {
     return this.__codeMirror;
   }
 
-  #scheduleVisualSync() {
-    if (this.__visualSyncTimer) clearTimeout(this.__visualSyncTimer);
-    this.__visualSyncTimer = setTimeout(() => {
-      this.__visualSyncTimer = null;
-      this.#syncVisualToSource();
+  #scheduleLiveSync() {
+    if (this.__liveSyncTimer) clearTimeout(this.__liveSyncTimer);
+    this.__liveSyncTimer = setTimeout(() => {
+      this.__liveSyncTimer = null;
+      this.#syncLiveToSource();
     }, 200);
   }
 
@@ -1095,13 +1141,13 @@ class PageEditor extends HTMLElement {
     if (this.__sourceSyncTimer) clearTimeout(this.__sourceSyncTimer);
     this.__sourceSyncTimer = setTimeout(() => {
       this.__sourceSyncTimer = null;
-      this.#syncSourceToVisual();
+      this.#syncSourceToLive();
     }, 200);
   }
 
-  #syncVisualToSource() {
-    if (this.__syncing || !this.__quill || !this.__codeMirror) return;
-    const html = this.#getVisualHtml();
+  #syncLiveToSource() {
+    if (this.__syncing || !this.__codeMirror) return;
+    const html = this.#getLiveHtml();
     if (this.__codeMirror.getValue() === html) return;
 
     this.__syncing = true;
@@ -1116,32 +1162,32 @@ class PageEditor extends HTMLElement {
     }
   }
 
-  #syncSourceToVisual() {
-    if (this.__syncing || !this.__quill || !this.__codeMirror) return;
+  #syncSourceToLive() {
+    if (this.__syncing || !this.__codeMirror) return;
     const html = this.__codeMirror.getValue() || '<p></p>';
-    if (this.#getVisualHtml() === html.trim()) return;
+    if (this.#getLiveHtml() === html.trim()) return;
 
     this.__syncing = true;
     try {
-      this.__quill.clipboard.dangerouslyPasteHTML(html);
+      this.#populateLiveEditor(html);
     } finally {
       this.__syncing = false;
     }
   }
 
   #flushEditorSync() {
-    if (this.__visualSyncTimer) {
-      clearTimeout(this.__visualSyncTimer);
-      this.__visualSyncTimer = null;
+    if (this.__liveSyncTimer) {
+      clearTimeout(this.__liveSyncTimer);
+      this.__liveSyncTimer = null;
     }
     if (this.__sourceSyncTimer) {
       clearTimeout(this.__sourceSyncTimer);
       this.__sourceSyncTimer = null;
     }
     if (this.__activeMode === 'source') {
-      this.#syncSourceToVisual();
-    } else if (this.__activeMode === 'visual') {
-      this.#syncVisualToSource();
+      this.#syncSourceToLive();
+    } else if (this.__activeMode === 'page') {
+      this.#syncLiveToSource();
     }
   }
 
@@ -1150,18 +1196,17 @@ class PageEditor extends HTMLElement {
     return value || this.__pageTitle || 'Page';
   }
 
-  #getVisualHtml() {
-    return this.__quill ? this.__quill.root.innerHTML.trim() : '';
+  #getLiveHtml() {
+    const { pageContent } = this.#els();
+    return pageContent?.innerHTML.trim() || '';
   }
 
   #getSourceHtml() {
-    if (this.__activeMode !== 'preview') {
-      this.#flushEditorSync();
-    }
+    this.#flushEditorSync();
     if (this.__activeMode === 'source' && this.__codeMirror) {
       return this.__codeMirror.getValue().trim();
     }
-    return this.#getVisualHtml();
+    return this.#getLiveHtml();
   }
 
   #buildFullPageHtml() {
@@ -1178,8 +1223,8 @@ class PageEditor extends HTMLElement {
   }
 
   async #setMode(mode) {
-    const nextMode = mode === 'source' ? 'source' : mode === 'preview' ? 'preview' : 'visual';
-    const { visualPanel, sourcePanel, previewPanel, modeTabs } = this.#els();
+    const nextMode = mode === 'source' ? 'source' : 'page';
+    const { pagePanel, sourcePanel, modeTabs } = this.#els();
 
     this.#flushEditorSync();
 
@@ -1188,13 +1233,13 @@ class PageEditor extends HTMLElement {
       const editor = await this.#ensureCodeMirror();
       this.__syncing = true;
       try {
-        editor.setValue(formatHtmlSource(this.#getVisualHtml()));
+        editor.setValue(formatHtmlSource(this.#getLiveHtml()));
       } finally {
         this.__syncing = false;
       }
       editor.refresh();
-    } else if (nextMode === 'visual' && this.__activeMode === 'source' && this.__codeMirror) {
-      this.#syncSourceToVisual();
+    } else if (nextMode === 'page' && this.__activeMode === 'source' && this.__codeMirror) {
+      this.#syncSourceToLive();
     }
 
     this.__activeMode = nextMode;
@@ -1203,17 +1248,16 @@ class PageEditor extends HTMLElement {
       tab.classList.toggle('is-active', isActive);
       tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
-    visualPanel?.classList.toggle('is-active', nextMode === 'visual');
+    pagePanel?.classList.toggle('is-active', nextMode === 'page');
     sourcePanel?.classList.toggle('is-active', nextMode === 'source');
-    previewPanel?.classList.toggle('is-active', nextMode === 'preview');
-    if (visualPanel) visualPanel.hidden = nextMode !== 'visual';
+    if (pagePanel) pagePanel.hidden = nextMode !== 'page';
     if (sourcePanel) sourcePanel.hidden = nextMode !== 'source';
-    if (previewPanel) previewPanel.hidden = nextMode !== 'preview';
 
     if (nextMode === 'source') {
       requestAnimationFrame(() => this.__codeMirror?.refresh());
-    } else if (nextMode === 'preview') {
-      this.#updatePreviewPanel();
+    } else if (nextMode === 'page') {
+      const { pageContent } = this.#els();
+      pageContent?.focus();
     }
   }
 
@@ -1225,18 +1269,6 @@ class PageEditor extends HTMLElement {
     const editor = await this.#ensureCodeMirror();
     editor.setValue(formatHtmlSource(editor.getValue()));
     this.#setStatus('HTML formatted.');
-  }
-
-  #updatePreviewPanel() {
-    const { previewBody } = this.#els();
-    if (!previewBody) return;
-    const pageTitle = escapeHtml(this.#getPageTitle());
-    previewBody.innerHTML = `<h1 class="page-editor__preview-heading">${pageTitle}</h1>${this.#getSourceHtml()}`;
-    try {
-      window.App?.applyBranding?.(previewBody);
-    } catch (error) {
-      // ignore
-    }
   }
 
   async #openPublishDialog() {

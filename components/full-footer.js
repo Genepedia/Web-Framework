@@ -623,6 +623,12 @@ class FullFooter extends HTMLElement {
           a.href = resolveFromComponent('../pages/privacy_policy.html');
         } else if (text.includes('terms')) {
           a.href = resolveFromComponent('../pages/terms_of_use.html');
+        } else if (text.includes('cookie')) {
+          a.href = resolveFromComponent('../pages/cookie_statement.html');
+        } else if (text.includes('conduct')) {
+          a.href = resolveFromComponent('../pages/code_of_conduct.html');
+        } else if (text.includes('legal') || text.includes('safety')) {
+          a.href = resolveFromComponent('../pages/legal_and_safety_contacts.html');
         } else if (text.includes('statistics')) {
           a.href = resolveFromComponent('../pages/statistics.html');
         } else if (text.includes('developers')) {
@@ -647,6 +653,12 @@ class FullFooter extends HTMLElement {
               a.setAttribute('href', resolveFromComponent('../pages/privacy_policy.html'));
             } else if (text.includes('terms')) {
               a.setAttribute('href', resolveFromComponent('../pages/terms_of_use.html'));
+            } else if (text.includes('cookie')) {
+              a.setAttribute('href', resolveFromComponent('../pages/cookie_statement.html'));
+            } else if (text.includes('conduct')) {
+              a.setAttribute('href', resolveFromComponent('../pages/code_of_conduct.html'));
+            } else if (text.includes('legal') || text.includes('safety')) {
+              a.setAttribute('href', resolveFromComponent('../pages/legal_and_safety_contacts.html'));
             } else if (text.includes('statistics')) {
               a.setAttribute('href', resolveFromComponent('../pages/statistics.html'));
             } else if (text.includes('developers')) {
