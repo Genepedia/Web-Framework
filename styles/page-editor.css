@@ -1,0 +1,588 @@
+page-editor {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  color: inherit;
+}
+
+.page-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.page-editor__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 2rem 0.85rem;
+  border-bottom: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  background: var(--background-color-neutral-subtle, #f8f9fa);
+}
+
+body.theme-dark .page-editor__header {
+  background: var(--background-color-neutral-subtle, #313438);
+}
+
+.page-editor__header-start,
+.page-editor__header-end {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.page-editor__header-end {
+  align-items: flex-end;
+  margin-left: auto;
+}
+
+.page-editor__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-progressive, #3366cc);
+  font: 0.875rem -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  text-decoration: none;
+}
+
+.page-editor__back:hover {
+  text-decoration: underline;
+}
+
+.page-editor__title-wrap {
+  min-width: 0;
+}
+
+.page-editor__eyebrow {
+  margin: 0 0 0.15rem;
+  color: var(--color-subtle, #54595d);
+  font: 0.78rem -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.page-editor__title-field {
+  display: block;
+  min-width: min(100%, 28rem);
+}
+
+.page-editor__title-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--color-subtle, #54595d);
+  font: 0.78rem -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.page-editor__title-input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.18));
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-base, #ffffff);
+  color: inherit;
+  font-family: Linux Libertine, Hoefler Text, Georgia, Times New Roman, Times, serif;
+  font-size: clamp(1.35rem, 3vw, 1.85rem);
+  font-weight: 400;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+body.theme-dark .page-editor__title-input {
+  background: var(--background-color-base, #27292d);
+}
+
+.page-editor__title-input:focus {
+  outline: 0;
+  border-color: var(--color-progressive, #3366cc);
+}
+
+.page-editor__source {
+  margin: 0.35rem 0 0;
+  color: var(--color-subtle, #54595d);
+  font-size: 0.85rem;
+}
+
+.page-editor__save-group {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.page-editor__unsaved-notice {
+  margin: 0;
+  color: #ea580c;
+  font: 0.875rem -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+}
+
+body.theme-dark .page-editor__unsaved-notice {
+  color: #fb923c;
+}
+
+.page-editor__unsaved-notice[hidden] {
+  display: none !important;
+}
+
+.page-editor__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-base, #ffffff);
+  color: var(--color-base, #202122);
+  font: 0.875rem -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.page-editor__button--small {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.page-editor__button:hover {
+  background: var(--background-color-interactive-subtle, #f1f3f5);
+}
+
+.page-editor__button--save {
+  border-color: #2d4a22;
+  background: #3a5f2a;
+  color: #ffffff;
+}
+
+.page-editor__button--save:hover {
+  background: #467334;
+}
+
+body.theme-dark .page-editor__button--save {
+  border-color: #8fd474;
+  background: #6faa57;
+  color: #141514;
+}
+
+body.theme-dark .page-editor__button--save:hover {
+  background: #7fbb68;
+}
+
+.page-editor__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.page-editor__status {
+  padding: 0.65rem 2rem;
+  border-bottom: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  background: var(--background-color-base, #ffffff);
+  font-size: 0.875rem;
+}
+
+.page-editor__status[data-type="error"] {
+  color: var(--color-destructive, #d73333);
+}
+
+.page-editor__status[data-type="success"] a {
+  color: var(--color-progressive, #3366cc);
+  font-weight: 600;
+}
+
+.page-editor__toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 2rem 0;
+  box-sizing: border-box;
+}
+
+.page-editor__mode-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-neutral-subtle, #f8f9fa);
+}
+
+.page-editor__mode-tab {
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  border-radius: calc(var(--border-radius-base, 0.125rem) - 1px);
+  background: transparent;
+  color: var(--color-subtle, #54595d);
+  font: 0.875rem -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.page-editor__mode-tab.is-active {
+  background: var(--background-color-base, #ffffff);
+  color: var(--color-base, #202122);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.page-editor__source-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  border-bottom: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  background: var(--background-color-neutral-subtle, #f8f9fa);
+}
+
+body.theme-dark .page-editor__source-bar {
+  background: var(--background-color-neutral-subtle, #313438);
+}
+
+.page-editor__workspace {
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 0.75rem 2rem 1.5rem;
+  box-sizing: border-box;
+}
+
+.page-editor__panel {
+  display: none;
+  min-width: 0;
+  border: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-base, #ffffff);
+  overflow: hidden;
+}
+
+.page-editor__panel.is-active {
+  display: block;
+}
+
+.page-editor__quill .ql-toolbar {
+  border: 0;
+  border-bottom: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  background: var(--background-color-neutral-subtle, #f8f9fa);
+}
+
+.page-editor__quill .ql-container {
+  border: 0;
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+}
+
+.page-editor__document {
+  min-height: 28rem;
+  padding: 0.25rem 0;
+  line-height: 1.65;
+}
+
+.page-editor__document h2,
+.page-editor__document h3 {
+  font-family: Linux Libertine, Hoefler Text, Georgia, Times New Roman, Times, serif;
+  font-weight: 400;
+}
+
+.page-editor__document h2 {
+  margin: 1.5rem 0 0.65rem;
+  font-size: 1.5rem;
+}
+
+.page-editor__document h3 {
+  margin: 1.15rem 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.page-editor__document p,
+.page-editor__document ul,
+.page-editor__document ol {
+  margin: 0 0 0.9rem;
+}
+
+.page-editor__document img,
+.page-editor__preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: var(--border-radius-base, 0.125rem);
+}
+
+.page-editor__quill .ql-font-serif,
+.page-editor__document .ql-font-serif,
+.page-editor__preview .ql-font-serif {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+.page-editor__quill .ql-font-monospace,
+.page-editor__document .ql-font-monospace,
+.page-editor__preview .ql-font-monospace {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.page-editor__quill .ql-font-linux-libertine,
+.page-editor__document .ql-font-linux-libertine,
+.page-editor__preview .ql-font-linux-libertine {
+  font-family: 'Linux Libertine', Hoefler Text, Georgia, 'Times New Roman', Times, serif;
+}
+
+.page-editor__quill .ql-font-arial,
+.page-editor__document .ql-font-arial,
+.page-editor__preview .ql-font-arial {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.page-editor__quill .ql-font-georgia,
+.page-editor__document .ql-font-georgia,
+.page-editor__preview .ql-font-georgia {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+.page-editor__quill .ql-font-verdana,
+.page-editor__document .ql-font-verdana,
+.page-editor__preview .ql-font-verdana {
+  font-family: Verdana, Geneva, sans-serif;
+}
+
+.page-editor__quill .ql-size-small,
+.page-editor__document .ql-size-small,
+.page-editor__preview .ql-size-small {
+  font-size: 0.85em;
+}
+
+.page-editor__quill .ql-size-large,
+.page-editor__document .ql-size-large,
+.page-editor__preview .ql-size-large {
+  font-size: 1.35em;
+}
+
+.page-editor__quill .ql-size-huge,
+.page-editor__document .ql-size-huge,
+.page-editor__preview .ql-size-huge {
+  font-size: 2em;
+}
+
+.page-editor__quill .ql-picker.ql-font {
+  width: 8.5rem;
+}
+
+.page-editor__quill .ql-picker.ql-size {
+  width: 5.5rem;
+}
+
+.page-editor__quill .ql-picker.ql-font .ql-picker-label[data-value="linux-libertine"]::before,
+.page-editor__quill .ql-picker.ql-font .ql-picker-item[data-value="linux-libertine"]::before {
+  content: 'Linux Libertine';
+  font-family: 'Linux Libertine', Georgia, serif;
+}
+
+.page-editor__quill .ql-picker.ql-font .ql-picker-label[data-value="arial"]::before,
+.page-editor__quill .ql-picker.ql-font .ql-picker-item[data-value="arial"]::before {
+  content: 'Arial';
+  font-family: Arial, sans-serif;
+}
+
+.page-editor__quill .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+.page-editor__quill .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+  content: 'Georgia';
+  font-family: Georgia, serif;
+}
+
+.page-editor__quill .ql-picker.ql-font .ql-picker-label[data-value="verdana"]::before,
+.page-editor__quill .ql-picker.ql-font .ql-picker-item[data-value="verdana"]::before {
+  content: 'Verdana';
+  font-family: Verdana, sans-serif;
+}
+
+.page-editor__preview {
+  min-height: 28rem;
+  padding: 1.25rem 1.5rem;
+  line-height: 1.65;
+}
+
+.page-editor__preview-heading {
+  margin: 0 0 1rem;
+  font-family: Linux Libertine, Hoefler Text, Georgia, Times New Roman, Times, serif;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.page-editor__preview h2,
+.page-editor__preview h3 {
+  font-family: Linux Libertine, Hoefler Text, Georgia, Times New Roman, Times, serif;
+  font-weight: 400;
+}
+
+.page-editor__preview h2 {
+  margin: 1.5rem 0 0.65rem;
+  font-size: 1.5rem;
+}
+
+.page-editor__preview h3 {
+  margin: 1.15rem 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.page-editor__preview p,
+.page-editor__preview ul,
+.page-editor__preview ol {
+  margin: 0 0 0.9rem;
+}
+
+.page-editor__codemirror {
+  min-height: 28rem;
+}
+
+.page-editor__codemirror .CodeMirror {
+  min-height: 28rem;
+  height: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.page-editor__error {
+  margin: 0;
+  padding: 1rem;
+  color: var(--color-destructive, #d73333);
+}
+
+.page-editor__publish-dialog {
+  width: min(960px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 0;
+  border: 0;
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-base, #ffffff);
+  color: var(--color-base, #202122);
+}
+
+.page-editor__publish-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.page-editor__publish-form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+}
+
+.page-editor__publish-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+}
+
+.page-editor__publish-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.page-editor__publish-intro {
+  margin: 0;
+  padding: 1rem 1rem 0;
+  color: var(--color-subtle, #54595d);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.page-editor__field {
+  display: block;
+  padding: 0.85rem 1rem 0;
+}
+
+.page-editor__field-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.page-editor__field-input,
+.page-editor__field-textarea {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-base, #ffffff);
+  color: var(--color-base, #202122);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.page-editor__field-textarea {
+  resize: vertical;
+  min-height: 7rem;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.page-editor__publish-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: var(--border-subtle, 1px solid rgba(0, 0, 0, 0.12));
+}
+
+.page-editor__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.page-editor__icon-button:hover {
+  background: var(--background-color-interactive-subtle, #f1f3f5);
+}
+
+@media (max-width: 720px) {
+  .page-editor__header,
+  .page-editor__status,
+  .page-editor__toolbar-row,
+  .page-editor__workspace {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .page-editor__header {
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+  }
+
+  .page-editor__header-end {
+    align-items: stretch;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .page-editor__save-group {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .page-editor__toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

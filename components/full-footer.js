@@ -384,9 +384,78 @@ function resolveFromComponent(relativePath) {
 
 const FULL_FOOTER_ACTION_BUTTON_SCRIPT_URL = resolveFromComponent('action-button.js');
 
-function getFooterSourcePath() {
-  if (window.AppPageTabs?.getSourcePath) {
-    return window.AppPageTabs.getSourcePath();
+const FOOTER_PEOPLE_PROFILE_FILES = [
+  'profile.html',
+  'data/profile.html',
+  'data/profile-table.html',
+  'data/media.html',
+  'data/tree.html',
+];
+
+function getFooterPeopleProfileSourcePaths() {
+  const path = window.location.pathname.replace(/\\/g, '/');
+  const match = path.match(/\/people\/([^/]+)\/profile\.html$/);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const base = `people/${match[1]}`;
+  return FOOTER_PEOPLE_PROFILE_FILES.map((file) => `${base}/${file}`);
+}
+
+function isFooterEditPage() {
+  const path = window.location.pathname.replace(/\\/g, '/');
+  return /(?:^|\/)pages\/edit\.html$/i.test(path);
+}
+
+function getFooterEditSourcePath() {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get('source')?.trim();
+  if (fromQuery) {
+    return fromQuery.replace(/^\/+/, '');
+  }
+
+  const editor = document.querySelector('page-editor');
+  const fromAttr = editor?.getAttribute('source')?.trim();
+  if (fromAttr) {
+    return fromAttr.replace(/^\/+/, '');
+  }
+
+  if (window.AppPageEditor?.getEditSourcePath) {
+    const path = window.AppPageEditor.getEditSourcePath();
+    if (path) {
+      return path;
+    }
+  }
+
+  return '';
+}
+
+function getFooterSourcePaths() {
+  if (isFooterEditPage()) {
+    const editSource = getFooterEditSourcePath();
+    if (editSource) {
+      return [editSource];
+    }
+  }
+
+  if (window.AppPageTabs?.getPeopleProfileSourcePaths) {
+    const profilePaths = window.AppPageTabs.getPeopleProfileSourcePaths();
+    if (profilePaths?.length) {
+      return profilePaths;
+    }
+  }
+
+  const footerProfilePaths = getFooterPeopleProfileSourcePaths();
+  if (footerProfilePaths?.length) {
+    return footerProfilePaths;
+  }
+
+  if (window.AppPageTabs?.getSourcePaths) {
+    const paths = window.AppPageTabs.getSourcePaths();
+    if (paths.length) {
+      return paths;
+    }
   }
 
   const path = window.location.pathname.replace(/\\/g, '/');
@@ -395,11 +464,11 @@ function getFooterSourcePath() {
   for (const marker of markers) {
     const index = path.indexOf(marker);
     if (index !== -1) {
-      return path.slice(index);
+      return [path.slice(index)];
     }
   }
 
-  return '';
+  return [];
 }
 
 function resolveFooterGitHubApiBase() {
@@ -454,7 +523,18 @@ function formatRelativeEditDate(value) {
 }
 
 function resolveFooterLastEditedHref(commit, repo) {
+  if (isFooterEditPage()) {
+    const editSource = getFooterEditSourcePath();
+    if (editSource.startsWith('pages/') && window.App?.resolveSiteUrl) {
+      return `${window.App.resolveSiteUrl(editSource)}#changes`;
+    }
+  }
+
   if (document.querySelector('full-page-toolbar[variant="page"]')) {
+    return '#changes';
+  }
+
+  if (document.querySelector('people-page') && getFooterSourcePaths().length > 1) {
     return '#changes';
   }
 
@@ -468,16 +548,22 @@ function resolveFooterLastEditedHref(commit, repo) {
   return '#';
 }
 
-async function fetchLatestCommitForFile(sourcePath) {
+async function fetchLatestCommitForFile(sourcePaths) {
   const apiBase = resolveFooterGitHubApiBase();
-  const cleanPath = String(sourcePath || '').replace(/^\/+/, '');
+  const paths = (Array.isArray(sourcePaths) ? sourcePaths : [sourcePaths])
+    .map((path) => String(path || '').replace(/^\/+/, '').trim())
+    .filter(Boolean);
 
-  if (!apiBase || !cleanPath) {
+  if (!apiBase || !paths.length) {
     return null;
   }
 
   const url = new URL('github-file-commits.php', `${apiBase}/`);
-  url.searchParams.set('path', cleanPath);
+  if (paths.length === 1) {
+    url.searchParams.set('path', paths[0]);
+  } else {
+    url.searchParams.set('paths', paths.join(','));
+  }
   url.searchParams.set('limit', '1');
 
   const response = await fetch(url);
@@ -646,14 +732,14 @@ class FullFooter extends HTMLElement {
       return;
     }
 
-    const sourcePath = getFooterSourcePath();
-    if (!sourcePath) {
+    const sourcePaths = getFooterSourcePaths();
+    if (!sourcePaths.length) {
       link.hidden = true;
       return;
     }
 
     try {
-      const result = await fetchLatestCommitForFile(sourcePath);
+      const result = await fetchLatestCommitForFile(sourcePaths);
       if (!result?.commit) {
         link.hidden = true;
         return;

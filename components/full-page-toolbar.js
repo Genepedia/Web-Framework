@@ -489,7 +489,7 @@ full-page-toolbar:not([variant="people"]):not([variant="page"]):not([variant="no
 
 class FullPageToolbar extends HTMLElement {
 	static get observedAttributes() {
-		return ['title', 'page-title', 'edit-href', 'edit-text', 'variant'];
+		return ['title', 'page-title', 'edit-href', 'edit-source', 'edit-text', 'variant'];
 	}
 
 	connectedCallback() {
@@ -565,6 +565,7 @@ class FullPageToolbar extends HTMLElement {
 			}
 		}
 		const editHref = this.getAttribute('edit-href')?.trim() || '';
+		const editSource = this.getAttribute('edit-source')?.trim() || '';
 		const editText = this.getAttribute('edit-text');
 
 		const editButton = this.querySelector('.people-page__edit-button');
@@ -587,9 +588,33 @@ class FullPageToolbar extends HTMLElement {
 		}
 
 		if (editButton) {
-			const shouldShowEdit = variant === 'people' || Boolean(editHref);
+			const shouldShowEdit = variant === 'people' || Boolean(editHref) || Boolean(editSource);
 			editButton.hidden = !shouldShowEdit;
-			if (editHref) editButton.href = editHref;
+
+			let resolvedEditHref = editHref;
+			if (editSource && (!resolvedEditHref || resolvedEditHref === '#')) {
+				const returnPath = (() => {
+					const path = window.location.pathname.replace(/\\/g, '/');
+					const markers = ['pages/', 'people/'];
+					for (const marker of markers) {
+						const index = path.indexOf(marker);
+						if (index !== -1) {
+							return path.slice(index);
+						}
+					}
+					return path.replace(/^\//, '');
+				})();
+
+				if (window.App?.resolvePageEditUrl) {
+					resolvedEditHref = window.App.resolvePageEditUrl(editSource, returnPath);
+				} else if (window.AppPageEditor?.resolveEditorPageUrl) {
+					resolvedEditHref = window.AppPageEditor.resolveEditorPageUrl(editSource, returnPath);
+				}
+			}
+
+			if (resolvedEditHref && resolvedEditHref !== '#') {
+				editButton.href = resolvedEditHref;
+			}
 			// keep title in sync with label for accessibility
 			editButton.title = defaultLabel;
 		}

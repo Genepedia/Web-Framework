@@ -43,6 +43,50 @@ body>article {
   margin: 0 auto;
 }
 
+/* Rich text from the page editor (Quill) on published pages */
+.main-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+}
+
+.main-content .ql-font-serif {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+.main-content .ql-font-monospace {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.main-content .ql-font-linux-libertine {
+  font-family: 'Linux Libertine', Hoefler Text, Georgia, 'Times New Roman', Times, serif;
+}
+
+.main-content .ql-font-arial {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.main-content .ql-font-georgia {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+.main-content .ql-font-verdana {
+  font-family: Verdana, Geneva, sans-serif;
+}
+
+.main-content .ql-size-small {
+  font-size: 0.85em;
+}
+
+.main-content .ql-size-large {
+  font-size: 1.35em;
+}
+
+.main-content .ql-size-huge {
+  font-size: 2em;
+}
+
 /* Enforce the site content width for pages that include the header/footer chrome
    (these pages wrap their content in `body > article`); this ensures any page
    that doesn't explicitly use `.main-content` still gets the same max-width as
@@ -54,7 +98,8 @@ body>article .main-content,
 body>article .people-page__content,
 body>article .people-page__inner,
 body>article full-page-toolbar .people-page__inner,
-body>article full-footer .page-footer__inner {
+body>article full-footer .page-footer__inner,
+body>article>page-editor {
   max-width: var(--site-content-max-width);
   margin-left: auto;
   margin-right: auto;
@@ -315,6 +360,36 @@ body.theme-dark .site-chip:hover {
 
 .page-changes__subject:hover {
   text-decoration: underline;
+}
+
+.page-changes__paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.35rem;
+  color: var(--color-subtle);
+  font-size: 0.82rem;
+}
+
+.page-changes__path {
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--border-radius-base);
+  background: var(--background-color-interactive-subtle);
+}
+
+.page-changes__file-diff {
+  margin: 0 0 1rem;
+}
+
+.page-changes__file-diff:last-child {
+  margin-bottom: 0;
+}
+
+.page-changes__file-diff-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-subtle);
 }
 
 .page-changes__meta {
