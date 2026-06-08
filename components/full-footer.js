@@ -384,6 +384,121 @@ function resolveFromComponent(relativePath) {
 
 const FULL_FOOTER_ACTION_BUTTON_SCRIPT_URL = resolveFromComponent('action-button.js');
 
+function getFooterSourcePath() {
+  if (window.AppPageTabs?.getSourcePath) {
+    return window.AppPageTabs.getSourcePath();
+  }
+
+  const path = window.location.pathname.replace(/\\/g, '/');
+  const markers = ['pages/', 'people/'];
+
+  for (const marker of markers) {
+    const index = path.indexOf(marker);
+    if (index !== -1) {
+      return path.slice(index);
+    }
+  }
+
+  return '';
+}
+
+function resolveFooterGitHubApiBase() {
+  return String(
+    window.App?.getGitHubApiBase?.()
+    || window.App?.GitHubApiBase
+    || '',
+  ).trim().replace(/\/+$/, '');
+}
+
+function formatRelativeEditDate(value) {
+  if (!value) {
+    return 'on an unknown date';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'on an unknown date';
+  }
+
+  const now = Date.now();
+  const diffMs = Math.max(0, now - date.getTime());
+  const diffMinutes = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 30) {
+    return `on ${date.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })}`;
+  }
+
+  if (diffDays > 1) {
+    return `${diffDays} days ago`;
+  }
+
+  if (diffDays === 1) {
+    return 'yesterday';
+  }
+
+  if (diffHours >= 1) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  }
+
+  if (diffMinutes >= 1) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+  }
+
+  return 'just now';
+}
+
+function resolveFooterLastEditedHref(commit, repo) {
+  if (document.querySelector('full-page-toolbar[variant="page"]')) {
+    return '#changes';
+  }
+
+  const repoSlug = String(repo || '').replace(/^\/+|\/+$/g, '');
+  const hash = String(commit?.hash || '').trim();
+
+  if (repoSlug && hash) {
+    return `https://github.com/${repoSlug}/commit/${encodeURIComponent(hash)}`;
+  }
+
+  return '#';
+}
+
+async function fetchLatestCommitForFile(sourcePath) {
+  const apiBase = resolveFooterGitHubApiBase();
+  const cleanPath = String(sourcePath || '').replace(/^\/+/, '');
+
+  if (!apiBase || !cleanPath) {
+    return null;
+  }
+
+  const url = new URL('github-file-commits.php', `${apiBase}/`);
+  url.searchParams.set('path', cleanPath);
+  url.searchParams.set('limit', '1');
+
+  const response = await fetch(url);
+  let payload = null;
+
+  try {
+    payload = await response.json();
+  } catch (error) {
+    return null;
+  }
+
+  if (!response.ok || !payload?.ok || !Array.isArray(payload.commits) || !payload.commits[0]) {
+    return null;
+  }
+
+  return {
+    commit: payload.commits[0],
+    repo: payload.repo,
+  };
+}
+
 function ensureFooterActionButtonScript() {
   if (customElements.get('action-button')) {
     return;
@@ -410,6 +525,7 @@ class FullFooter extends HTMLElement {
     ensureFooterActionButtonScript();
     this.innerHTML = FULL_FOOTER_TEMPLATE;
     this.#syncLastEdited();
+    this.#loadLastEditedFromApi();
 
     // Resolve important footer links to site pages so links work from any
     // document location (script path is used as the base for resolution).
@@ -479,7 +595,16 @@ class FullFooter extends HTMLElement {
     }
   }
 
+  #hasManualLastEdited() {
+    if (this.getAttribute('last-edited')?.trim()) {
+      return true;
+    }
+
+    return this.hasAttribute('last-editor') || this.hasAttribute('last-edited-days');
+  }
+
   #syncLastEdited() {
+    const link = this.querySelector('.page-footer__last-edited');
     const textEl = this.querySelector('.page-footer__last-edited-text');
     if (!textEl) {
       return;
@@ -488,12 +613,62 @@ class FullFooter extends HTMLElement {
     const custom = this.getAttribute('last-edited')?.trim();
     if (custom) {
       textEl.textContent = custom;
+      if (link) {
+        link.hidden = false;
+      }
       return;
     }
 
-    const days = this.getAttribute('last-edited-days')?.trim() || '7';
-    const editor = this.getAttribute('last-editor')?.trim() || 'Shaun Roselt';
-    textEl.textContent = `Last edited ${days} days ago by ${editor}`;
+    if (this.hasAttribute('last-editor') || this.hasAttribute('last-edited-days')) {
+      const days = this.getAttribute('last-edited-days')?.trim() || '0';
+      const editor = this.getAttribute('last-editor')?.trim() || 'Unknown';
+      textEl.textContent = `Last edited ${days} days ago by ${editor}`;
+      if (link) {
+        link.hidden = false;
+      }
+      return;
+    }
+
+    textEl.textContent = '';
+    if (link) {
+      link.hidden = true;
+    }
+  }
+
+  async #loadLastEditedFromApi() {
+    if (this.#hasManualLastEdited()) {
+      return;
+    }
+
+    const link = this.querySelector('.page-footer__last-edited');
+    const textEl = this.querySelector('.page-footer__last-edited-text');
+    if (!link || !textEl) {
+      return;
+    }
+
+    const sourcePath = getFooterSourcePath();
+    if (!sourcePath) {
+      link.hidden = true;
+      return;
+    }
+
+    try {
+      const result = await fetchLatestCommitForFile(sourcePath);
+      if (!result?.commit) {
+        link.hidden = true;
+        return;
+      }
+
+      const { commit, repo } = result;
+      const when = formatRelativeEditDate(commit.date);
+      const author = String(commit.author || '').trim() || 'Unknown author';
+
+      textEl.textContent = `Last edited ${when} by ${author}`;
+      link.href = resolveFooterLastEditedHref(commit, repo);
+      link.hidden = false;
+    } catch (error) {
+      link.hidden = true;
+    }
   }
 
   #syncMiniHeader() {
