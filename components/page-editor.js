@@ -62,6 +62,11 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
   <div class="page-editor__workspace">
     <div class="page-editor__panel page-editor__panel--page is-active" data-panel="page">
       <div class="page-editor__format-toolbar" role="toolbar" aria-label="Formatting">
+        <button type="button" class="page-editor__format-button page-editor__format-button--primary" data-action="open-inserter" title="Add block">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i>
+          <span>Add block</span>
+        </button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline" aria-hidden="true"></i></button>
@@ -72,18 +77,22 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
         <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-cmd="insertUnorderedList" title="Bullet list"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="insertOrderedList" title="Numbered list"><i class="bi bi-list-ol" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="blockquote" title="Blockquote"><i class="bi bi-quote" aria-hidden="true"></i></button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-action="insert-link" title="Link"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-action="insert-image" title="Image"><i class="bi bi-image" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-action="insert-table" title="Table"><i class="bi bi-table" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-action="insert-columns" title="Two columns"><i class="bi bi-layout-three-columns" aria-hidden="true"></i></button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser" aria-hidden="true"></i></button>
       </div>
-      <div class="page-editor__page-frame">
-        <div class="page-editor__page-content" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Editable page content"></div>
+      <div class="page-editor__layout">
+        <div class="page-editor__page-frame">
+          <div class="page-editor__page-content" aria-label="Editable page canvas"></div>
+        </div>
+        <aside class="page-editor__block-sidebar" hidden aria-label="Block settings">
+          <header class="page-editor__block-sidebar-header">
+            <h3 class="page-editor__block-sidebar-title">Block settings</h3>
+            <p class="page-editor__block-sidebar-type"></p>
+          </header>
+          <div class="page-editor__block-sidebar-body"></div>
+        </aside>
       </div>
+      <div class="page-editor__slash-menu" role="listbox" aria-label="Insert block" hidden></div>
     </div>
     <div class="page-editor__panel page-editor__panel--source" data-panel="source" hidden>
       <div class="page-editor__source-bar">
@@ -95,6 +104,19 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
       <div class="page-editor__codemirror" aria-label="HTML editor"></div>
     </div>
   </div>
+
+  <dialog class="page-editor__inserter" aria-label="Block library">
+    <form method="dialog" class="page-editor__inserter-form">
+      <header class="page-editor__inserter-header">
+        <h2 class="page-editor__inserter-title">Add block</h2>
+        <input type="search" class="page-editor__inserter-search" placeholder="Search blocks…" autocomplete="off">
+        <button type="button" class="page-editor__icon-button" data-action="close-inserter" aria-label="Close">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </header>
+      <div class="page-editor__inserter-body" role="listbox" aria-label="Available blocks"></div>
+    </form>
+  </dialog>
 
   <dialog class="page-editor__publish-dialog">
     <form method="dialog" class="page-editor__publish-form">
@@ -130,9 +152,41 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
 </div>
 `;
 
-const INSERT_TABLE_HTML = '<table class="site-table"><thead><tr><th scope="col">Header</th><th scope="col">Header</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>';
+const BLOCK_CATEGORIES = [
+  { id: 'text', label: 'Text' },
+  { id: 'media', label: 'Media' },
+  { id: 'design', label: 'Design' },
+  { id: 'layout', label: 'Layout' },
+];
 
-const INSERT_COLUMNS_HTML = '<div class="home-page__grid"><article class="card home-page__tile"><p>Column 1</p></article><article class="card home-page__tile"><p>Column 2</p></article></div>';
+const BLOCK_DEFINITIONS = [
+  { id: 'paragraph', category: 'text', label: 'Paragraph', icon: 'bi-text-paragraph', description: 'Plain text for body copy.', html: '<p>Start writing…</p>', transforms: ['heading', 'quote', 'list'] },
+  { id: 'heading', category: 'text', label: 'Heading', icon: 'bi-type-h2', description: 'Section heading (H2).', html: '<h2 class="home-page__section-title">Heading</h2>', transforms: ['paragraph'] },
+  { id: 'list', category: 'text', label: 'List', icon: 'bi-list-ul', description: 'Bulleted or numbered list.', html: '<ul><li>First item</li><li>Second item</li></ul>', transforms: ['paragraph'] },
+  { id: 'quote', category: 'text', label: 'Quote', icon: 'bi-quote', description: 'Highlighted quotation.', html: '<blockquote><p>A memorable quote.</p></blockquote>', transforms: ['paragraph'] },
+  { id: 'image', category: 'media', label: 'Image', icon: 'bi-image', description: 'Image with alt text.', html: '<p><img src="assets/Logo.png" alt="Describe this image"></p>', transforms: [] },
+  { id: 'button', category: 'design', label: 'Button', icon: 'bi-square', description: 'Single call-to-action button.', html: '<p><a class="pure-button" href="#">Button label</a></p>', transforms: ['buttons'] },
+  { id: 'buttons', category: 'design', label: 'Buttons', icon: 'bi-ui-checks-grid', description: 'Row of action buttons.', html: '<div class="home-page__actions"><a class="pure-button" href="#">Primary action</a><a class="pure-button" href="#">Secondary action</a></div>', transforms: ['button'] },
+  { id: 'chip', category: 'design', label: 'Chips', icon: 'bi-tags', description: 'Compact topic links.', html: '<div class="home-page__chips"><a class="site-chip" href="#">Topic</a><a class="site-chip" href="#">Another topic</a></div>', transforms: [] },
+  { id: 'divider', category: 'design', label: 'Divider', icon: 'bi-hr', description: 'Horizontal rule between sections.', html: '<hr>', transforms: [] },
+  { id: 'hero', category: 'layout', label: 'Hero', icon: 'bi-window', description: 'Large intro banner with title and CTA.', html: '<section class="card home-page__hero"><div class="home-page__hero-inner"><h1 class="home-page__hero-title">Welcome</h1><p class="home-page__hero-text">Introductory text for this page.</p><div class="home-page__actions"><a class="pure-button" href="#">Call to action</a></div></div></section>', transforms: ['section'] },
+  { id: 'section', category: 'layout', label: 'Section', icon: 'bi-bounding-box', description: 'Card section with title and text.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Section title</h2><p class="home-page__section-text">Section content goes here.</p></section>', transforms: ['hero', 'tiles'] },
+  { id: 'tiles', category: 'layout', label: 'Card grid', icon: 'bi-grid-3x3-gap', description: 'Grid of feature cards.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Featured</h2><div class="home-page__grid"><article class="card home-page__tile"><h3 class="home-page__tile-title">Card title</h3><p class="home-page__tile-text">Card text.</p></article><article class="card home-page__tile"><h3 class="home-page__tile-title">Card title</h3><p class="home-page__tile-text">Card text.</p></article></div></section>', transforms: ['section', 'columns'] },
+  { id: 'columns', category: 'layout', label: 'Columns', icon: 'bi-layout-three-columns', description: 'Two-column layout.', html: '<div class="home-page__grid"><article class="card home-page__tile"><p>Column 1</p></article><article class="card home-page__tile"><p>Column 2</p></article></div>', transforms: ['tiles'] },
+  { id: 'updates', category: 'layout', label: 'Updates list', icon: 'bi-clock-history', description: 'List of recent updates with links.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Latest Updates</h2><ul class="home-page__updates"><li><a href="#">First update</a></li><li><a href="#">Second update</a></li></ul></section>', transforms: ['section', 'list'] },
+  { id: 'newsletter', category: 'layout', label: 'Newsletter', icon: 'bi-envelope', description: 'Email signup section.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Newsletter</h2><p class="home-page__section-text">Get occasional updates.</p><form class="home-page__newsletter-form" onsubmit="event.preventDefault();"><input class="home-page__newsletter-input" type="email" name="email" placeholder="you@example.com" required><button class="pure-button" type="submit">Subscribe</button></form></section>', transforms: ['section'] },
+  { id: 'table', category: 'layout', label: 'Table', icon: 'bi-table', description: 'Data table with headers.', html: '<table class="site-table"><thead><tr><th scope="col">Header</th><th scope="col">Header</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>', transforms: [] },
+  { id: 'spacer', category: 'layout', label: 'Spacer', icon: 'bi-distribute-vertical', description: 'Vertical whitespace.', html: '<div class="page-editor__spacer" style="height:1.5rem" aria-hidden="true"></div>', transforms: [] },
+];
+
+let blockUidCounter = 0;
+
+function createBlockUid() {
+  blockUidCounter += 1;
+  return `block-${Date.now()}-${blockUidCounter}`;
+}
+
+const BLOCK_DEFINITION_BY_ID = Object.fromEntries(BLOCK_DEFINITIONS.map((block) => [block.id, block]));
 
 let codeMirrorLoaderPromise = null;
 let beautifyLoaderPromise = null;
@@ -351,6 +405,124 @@ function applyBrandingToNode(node) {
   } catch (error) {
     // ignore
   }
+}
+
+function splitHtmlIntoTopLevelFragments(html) {
+  const blocks = extractContentBlocksFromEditor(html);
+  if (blocks.length > 0) {
+    return blocks.map((block) => block.outerHtml);
+  }
+  const trimmed = String(html || '').trim();
+  return trimmed ? [trimmed] : ['<p></p>'];
+}
+
+function detectBlockType(html) {
+  const doc = new DOMParser().parseFromString(`<div data-root>${html}</div>`, 'text/html');
+  const root = doc.querySelector('[data-root]');
+  const el = root?.firstElementChild;
+  if (!el) return 'paragraph';
+
+  const cls = String(el.className || '');
+  const tag = el.tagName.toLowerCase();
+
+  if (tag === 'section' && cls.includes('home-page__hero')) return 'hero';
+  if (tag === 'section' && cls.includes('home-page__section')) {
+    return el.querySelector('.home-page__grid') ? 'tiles' : 'section';
+  }
+  if (cls.includes('home-page__grid')) return 'columns';
+  if (cls.includes('home-page__actions')) return 'buttons';
+  if (cls.includes('home-page__chips')) return 'chip';
+  if (tag === 'table' || el.querySelector('table')) return 'table';
+  if (tag === 'ul' || tag === 'ol') return 'list';
+  if (tag === 'blockquote') return 'quote';
+  if (tag === 'img' || el.querySelector('img')) return 'image';
+  if (el.querySelector('.pure-button') && !cls.includes('home-page__actions')) return 'button';
+  if (tag === 'hr') return 'divider';
+  if (tag === 'h1' || tag === 'h2' || tag === 'h3') return 'heading';
+  if (el.querySelector('.home-page__newsletter-form')) return 'newsletter';
+  if (el.querySelector('.home-page__updates')) return 'updates';
+  if (cls.includes('page-editor__spacer') || (tag === 'div' && el.style.height && !el.textContent.trim())) return 'spacer';
+  return 'paragraph';
+}
+
+function updateBlockChrome(block) {
+  if (!block) return;
+  const body = block.querySelector('.page-editor__block-body');
+  if (!body) return;
+  const typeId = detectBlockType(body.innerHTML);
+  block.dataset.blockType = typeId;
+  const definition = getBlockDefinition(typeId);
+  const label = block.querySelector('.page-editor__block-type-label');
+  const icon = block.querySelector('.page-editor__block-type i');
+  if (label) label.textContent = definition.label;
+  if (icon) icon.className = `bi ${definition.icon}`;
+}
+
+function getBlockDefinition(typeId) {
+  return BLOCK_DEFINITION_BY_ID[typeId] || BLOCK_DEFINITION_BY_ID.paragraph;
+}
+
+function serializeBlockCanvas(blocksRoot) {
+  if (!blocksRoot) return '';
+  const blocks = [...blocksRoot.querySelectorAll(':scope > .page-editor__block')];
+  return blocks
+    .map((block) => block.querySelector('.page-editor__block-body')?.innerHTML.trim() || '')
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function createBlockElement(fragmentHtml) {
+  const typeId = detectBlockType(fragmentHtml);
+  const definition = getBlockDefinition(typeId);
+  const block = document.createElement('div');
+  block.className = 'page-editor__block';
+  block.dataset.blockType = typeId;
+  block.dataset.blockUid = createBlockUid();
+  block.innerHTML = `
+    <div class="page-editor__block-toolbar" contenteditable="false">
+      <button type="button" class="page-editor__block-tool page-editor__block-drag" data-block-action="drag" title="Drag to reorder" aria-label="Drag block" draggable="true">
+        <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="page-editor__block-tool" data-block-action="insert-before" title="Insert above" aria-label="Insert block above">
+        <i class="bi bi-plus" aria-hidden="true"></i>
+      </button>
+      <span class="page-editor__block-type">
+        <i class="bi ${definition.icon}" aria-hidden="true"></i>
+        <span class="page-editor__block-type-label">${escapeHtml(definition.label)}</span>
+      </span>
+      <div class="page-editor__block-actions">
+        <button type="button" class="page-editor__block-tool" data-block-action="duplicate" title="Duplicate" aria-label="Duplicate block">
+          <i class="bi bi-copy" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="page-editor__block-tool" data-block-action="insert-after" title="Insert below" aria-label="Insert block below">
+          <i class="bi bi-plus-circle" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="page-editor__block-tool" data-block-action="move-up" title="Move up" aria-label="Move block up">
+          <i class="bi bi-arrow-up" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="page-editor__block-tool" data-block-action="move-down" title="Move down" aria-label="Move block down">
+          <i class="bi bi-arrow-down" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="page-editor__block-tool page-editor__block-tool--danger" data-block-action="delete" title="Delete" aria-label="Delete block">
+          <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="page-editor__block-body" contenteditable="true" spellcheck="true"></div>
+  `;
+  const body = block.querySelector('.page-editor__block-body');
+  if (body) {
+    body.innerHTML = fragmentHtml;
+    hardenLiveEditorRoot(body);
+  }
+  return block;
+}
+
+function createBlockGapElement() {
+  const gap = document.createElement('div');
+  gap.className = 'page-editor__block-gap';
+  gap.innerHTML = '<button type="button" class="page-editor__block-gap-button" data-block-action="insert-at-gap" aria-label="Insert block here"><i class="bi bi-plus" aria-hidden="true"></i></button>';
+  return gap;
 }
 
 function findContentRegion(html, contentSelector) {
@@ -755,6 +927,11 @@ class PageEditor extends HTMLElement {
     this.__syncing = false;
     this.__liveSyncTimer = null;
     this.__sourceSyncTimer = null;
+    this.__inserterContext = null;
+    this.__draggingBlock = null;
+    this.__slashBlock = null;
+    this.__chromeSyncTimer = null;
+    this.__selectedBlock = null;
     this.__contentSelector = this.getAttribute('content-selector')?.trim() || '.main-content';
     this.__beforeUnloadHandler = null;
     this.__navigationClickHandler = null;
@@ -783,15 +960,51 @@ class PageEditor extends HTMLElement {
     if (!root) return;
 
     root.addEventListener('mousedown', (event) => {
-      if (event.target.closest('.page-editor__format-toolbar button')) {
+      if (event.target.closest('.page-editor__format-toolbar button, .page-editor__block-gap-button')) {
+        event.preventDefault();
+      }
+      if (event.target.closest('.page-editor__block-toolbar button:not(.page-editor__block-drag)')) {
         event.preventDefault();
       }
     });
 
     root.addEventListener('click', (event) => {
+      const slashChoice = event.target.closest('.page-editor__slash-item[data-block-id]');
+      if (slashChoice) {
+        event.preventDefault();
+        this.#insertBlockFromSlash(slashChoice.dataset.blockId);
+        return;
+      }
+
+      const blockAction = event.target.closest('[data-block-action]');
+      if (blockAction) {
+        event.preventDefault();
+        const block = blockAction.closest('.page-editor__block');
+        this.#handleBlockAction(blockAction.dataset.blockAction, block, blockAction);
+        return;
+      }
+
+      const inserterChoice = event.target.closest('[data-block-id]');
+      if (inserterChoice && inserterChoice.closest('.page-editor__inserter')) {
+        event.preventDefault();
+        this.#insertBlockById(inserterChoice.dataset.blockId);
+        return;
+      }
+
+      const sidebarControl = event.target.closest('[data-sidebar-action]');
+      if (sidebarControl) {
+        event.preventDefault();
+        this.#handleSidebarAction(sidebarControl);
+        return;
+      }
+
       const formatButton = event.target.closest('.page-editor__format-toolbar [data-cmd], .page-editor__format-toolbar [data-action]');
       if (formatButton) {
         event.preventDefault();
+        if (formatButton.dataset.action === 'open-inserter') {
+          this.#openInserter({ position: 'append' });
+          return;
+        }
         this.#handleFormatAction(formatButton);
         return;
       }
@@ -809,6 +1022,65 @@ class PageEditor extends HTMLElement {
       if (action === 'publish') void this.#openPublishDialog();
       else if (action === 'format-source') void this.#formatSource();
       else if (action === 'close-publish') this.#closePublishDialog();
+      else if (action === 'close-inserter') this.#closeInserter();
+      else if (action === 'open-inserter') this.#openInserter({ position: 'append' });
+    });
+
+    root.addEventListener('input', (event) => {
+      if (event.target.closest('.page-editor__block-sidebar')) return;
+      if (!event.target.closest('.page-editor__block-body')) return;
+      if (this.__syncing) return;
+      const block = event.target.closest('.page-editor__block');
+      this.#scheduleBlockChromeSync(block);
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+    });
+
+    root.addEventListener('change', (event) => {
+      if (!event.target.closest('.page-editor__block-sidebar')) return;
+      this.#handleSidebarInput(event.target);
+    });
+
+    root.addEventListener('keydown', (event) => {
+      if (this.__activeMode !== 'page') return;
+      if (event.target.closest('.page-editor__inserter, .page-editor__publish-dialog')) return;
+
+      const body = event.target.closest('.page-editor__block-body');
+      if (body && event.key === '/' && this.#shouldOpenSlashMenu(body)) {
+        event.preventDefault();
+        this.#openSlashMenu(body.closest('.page-editor__block'));
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        this.#closeSlashMenu();
+        return;
+      }
+
+      const block = this.__selectedBlock || body?.closest('.page-editor__block');
+      if (!block) return;
+
+      if (event.key === 'Backspace' && body && this.#isBlockBodyEmpty(body) && !event.defaultPrevented) {
+        const blocksRoot = this.#els().blocksRoot();
+        if (blocksRoot && blocksRoot.querySelectorAll(':scope > .page-editor__block').length > 1) {
+          event.preventDefault();
+          this.#handleBlockAction('delete', block);
+        }
+        return;
+      }
+
+      if (event.ctrlKey && event.shiftKey && event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.#handleBlockAction('move-up', block);
+      } else if (event.ctrlKey && event.shiftKey && event.key === 'ArrowDown') {
+        event.preventDefault();
+        this.#handleBlockAction('move-down', block);
+      }
+    });
+
+    const inserterSearch = this.querySelector('.page-editor__inserter-search');
+    inserterSearch?.addEventListener('input', () => {
+      this.#renderInserterPanel(inserterSearch.value);
     });
 
     const publishForm = this.querySelector('.page-editor__publish-form');
@@ -903,7 +1175,7 @@ class PageEditor extends HTMLElement {
       const href = link.getAttribute('href');
       if (!href || href === '#' || href.startsWith('#') || href.startsWith('javascript:')) return;
 
-      if (link.closest('.page-editor__publish-dialog')) return;
+      if (link.closest('.page-editor__publish-dialog, .page-editor__inserter')) return;
 
       try {
         const nextUrl = new URL(link.href, window.location.href);
@@ -939,6 +1211,14 @@ class PageEditor extends HTMLElement {
       modeTabs: [...this.querySelectorAll('.page-editor__mode-tab')],
       publishDialog: this.querySelector('.page-editor__publish-dialog'),
       publishForm: this.querySelector('.page-editor__publish-form'),
+      inserterDialog: this.querySelector('.page-editor__inserter'),
+      inserterBody: this.querySelector('.page-editor__inserter-body'),
+      inserterSearch: this.querySelector('.page-editor__inserter-search'),
+      slashMenu: this.querySelector('.page-editor__slash-menu'),
+      blockSidebar: this.querySelector('.page-editor__block-sidebar'),
+      blockSidebarBody: this.querySelector('.page-editor__block-sidebar-body'),
+      blockSidebarType: this.querySelector('.page-editor__block-sidebar-type'),
+      blocksRoot: () => this.querySelector('.page-editor__blocks'),
     };
   }
 
@@ -1006,9 +1286,10 @@ class PageEditor extends HTMLElement {
       if (titleInput) titleInput.value = this.__pageTitle;
       document.title = `Edit ${this.__pageTitle}`;
 
+      this.#renderInserterPanel('');
       this.#populateLiveEditor(extracted.content || '<p></p>');
       this.#setSavedBaseline();
-      this.#setStatus('Edit the page directly — it uses the same layout and styles as the live page. Use HTML for advanced markup.');
+      this.#setStatus('Type / to insert blocks, drag to reorder, and use the sidebar for block settings. Switch to HTML for full control.');
     } catch (error) {
       console.error(error);
       if (pageContent) {
@@ -1024,25 +1305,528 @@ class PageEditor extends HTMLElement {
     if (!pageContent) return;
 
     pageContent.className = `${this.__mainClassName} page-editor__page-content`;
-    pageContent.innerHTML = html || '<p></p>';
-    applyBrandingToNode(pageContent);
-    hardenLiveEditorRoot(pageContent);
+    pageContent.replaceChildren();
 
-    if (!pageContent.__pageEditorBound) {
-      pageContent.__pageEditorBound = true;
-      pageContent.addEventListener('input', () => {
-        if (this.__syncing) return;
+    const blocksRoot = document.createElement('div');
+    blocksRoot.className = 'page-editor__blocks';
+    splitHtmlIntoTopLevelFragments(html).forEach((fragment) => {
+      blocksRoot.appendChild(createBlockElement(fragment));
+    });
+    pageContent.appendChild(blocksRoot);
+
+    const append = document.createElement('div');
+    append.className = 'page-editor__canvas-append';
+    append.innerHTML = '<button type="button" class="page-editor__add-block" data-action="open-inserter"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add block</span></button>';
+    pageContent.appendChild(append);
+
+    this.#rebuildBlockGaps();
+    this.#bindBlocksCanvas(pageContent);
+    applyBrandingToNode(pageContent);
+  }
+
+  #rebuildBlockGaps() {
+    const blocksRoot = this.#els().blocksRoot();
+    if (!blocksRoot) return;
+
+    blocksRoot.querySelectorAll(':scope > .page-editor__block-gap').forEach((gap) => gap.remove());
+    const blocks = [...blocksRoot.querySelectorAll(':scope > .page-editor__block')];
+    blocks.forEach((block) => {
+      blocksRoot.insertBefore(createBlockGapElement(), block);
+    });
+  }
+
+  #bindBlocksCanvas(pageContent) {
+    if (pageContent.__blocksBound) return;
+    pageContent.__blocksBound = true;
+
+    const blocksRoot = pageContent.querySelector('.page-editor__blocks');
+    if (!blocksRoot) return;
+
+    pageContent.addEventListener('focusin', (event) => {
+      const block = event.target.closest('.page-editor__block');
+      if (!block) return;
+      this.#selectBlock(block);
+    });
+
+    blocksRoot.addEventListener('dragstart', (event) => {
+      const handle = event.target.closest('[data-block-action="drag"]');
+      if (!handle) return;
+      const block = handle.closest('.page-editor__block');
+      if (!block) return;
+      this.__draggingBlock = block;
+      block.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', block.dataset.blockUid || '');
+    });
+
+    blocksRoot.addEventListener('dragend', () => {
+      if (this.__draggingBlock) {
+        this.__draggingBlock.classList.remove('is-dragging');
+        this.__draggingBlock = null;
+      }
+      blocksRoot.querySelectorAll('.page-editor__block.is-drop-target').forEach((el) => {
+        el.classList.remove('is-drop-target');
+      });
+    });
+
+    blocksRoot.addEventListener('dragover', (event) => {
+      if (!this.__draggingBlock) return;
+      event.preventDefault();
+      const target = event.target.closest('.page-editor__block');
+      blocksRoot.querySelectorAll('.page-editor__block.is-drop-target').forEach((el) => {
+        el.classList.toggle('is-drop-target', el === target && el !== this.__draggingBlock);
+      });
+    });
+
+    blocksRoot.addEventListener('drop', (event) => {
+      if (!this.__draggingBlock) return;
+      event.preventDefault();
+      const target = event.target.closest('.page-editor__block');
+      if (!target || target === this.__draggingBlock) return;
+      const rect = target.getBoundingClientRect();
+      const before = event.clientY < rect.top + rect.height / 2;
+      if (before) {
+        target.before(this.__draggingBlock);
+      } else {
+        target.after(this.__draggingBlock);
+      }
+      this.#rebuildBlockGaps();
+      this.#selectBlock(this.__draggingBlock);
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+    });
+  }
+
+  #selectBlock(block) {
+    const { pageContent } = this.#els();
+    if (!block || !pageContent) return;
+    this.__selectedBlock = block;
+    pageContent.querySelectorAll('.page-editor__block').forEach((item) => {
+      item.classList.toggle('is-selected', item === block);
+    });
+    this.#renderBlockSidebar(block);
+  }
+
+  #scheduleBlockChromeSync(block) {
+    if (!block) return;
+    if (this.__chromeSyncTimer) clearTimeout(this.__chromeSyncTimer);
+    this.__chromeSyncTimer = setTimeout(() => {
+      this.__chromeSyncTimer = null;
+      updateBlockChrome(block);
+      if (this.__selectedBlock === block) {
+        this.#renderBlockSidebar(block);
+      }
+    }, 250);
+  }
+
+  #getActiveBlockBody() {
+    const selection = document.getSelection();
+    if (selection?.anchorNode) {
+      const node = selection.anchorNode.nodeType === Node.TEXT_NODE
+        ? selection.anchorNode.parentElement
+        : selection.anchorNode;
+      const body = node?.closest?.('.page-editor__block-body');
+      if (body) return body;
+    }
+
+    const { pageContent } = this.#els();
+    return pageContent?.querySelector('.page-editor__block.is-selected .page-editor__block-body')
+      || pageContent?.querySelector('.page-editor__block-body');
+  }
+
+  #renderInserterPanel(query = '') {
+    const { inserterBody } = this.#els();
+    if (!inserterBody) return;
+
+    const needle = String(query || '').trim().toLowerCase();
+    const matches = BLOCK_DEFINITIONS.filter((block) => {
+      if (!needle) return true;
+      return block.label.toLowerCase().includes(needle)
+        || block.id.toLowerCase().includes(needle)
+        || block.category.toLowerCase().includes(needle);
+    });
+
+    const grouped = BLOCK_CATEGORIES.map((category) => ({
+      ...category,
+      blocks: matches.filter((block) => block.category === category.id),
+    })).filter((category) => category.blocks.length > 0);
+
+    inserterBody.innerHTML = grouped.map((category) => `
+      <section class="page-editor__inserter-section">
+        <h3 class="page-editor__inserter-section-title">${escapeHtml(category.label)}</h3>
+        <div class="page-editor__inserter-grid">
+          ${category.blocks.map((block) => `
+            <button type="button" class="page-editor__inserter-item" data-block-id="${escapeHtml(block.id)}" role="option">
+              <i class="bi ${escapeHtml(block.icon)}" aria-hidden="true"></i>
+              <span class="page-editor__inserter-item-label">${escapeHtml(block.label)}</span>
+              ${block.description ? `<span class="page-editor__inserter-item-desc">${escapeHtml(block.description)}</span>` : ''}
+            </button>
+          `).join('')}
+        </div>
+      </section>
+    `).join('') || '<p class="page-editor__inserter-empty">No blocks match your search.</p>';
+  }
+
+  #openInserter(context = {}) {
+    const { inserterDialog, inserterSearch } = this.#els();
+    if (!inserterDialog) return;
+
+    this.__inserterContext = {
+      block: context.block || null,
+      position: context.position || 'append',
+    };
+
+    if (inserterSearch) inserterSearch.value = '';
+    this.#renderInserterPanel('');
+
+    if (typeof inserterDialog.showModal === 'function') inserterDialog.showModal();
+    else inserterDialog.setAttribute('open', 'open');
+
+    requestAnimationFrame(() => inserterSearch?.focus());
+  }
+
+  #closeInserter() {
+    const { inserterDialog } = this.#els();
+    this.__inserterContext = null;
+    if (inserterDialog?.open) inserterDialog.close();
+    else inserterDialog?.removeAttribute('open');
+  }
+
+  #insertBlockById(blockId) {
+    const definition = BLOCK_DEFINITION_BY_ID[blockId];
+    if (!definition) return;
+
+    const blocksRoot = this.#els().blocksRoot();
+    if (!blocksRoot) return;
+
+    const newBlock = createBlockElement(definition.html);
+    const context = this.__inserterContext || { position: 'append' };
+
+    if (context.block && context.position === 'before') {
+      context.block.before(newBlock);
+    } else if (context.block && context.position === 'after') {
+      context.block.after(newBlock);
+    } else {
+      blocksRoot.appendChild(newBlock);
+    }
+
+    applyBrandingToNode(newBlock);
+    this.#rebuildBlockGaps();
+    this.#closeInserter();
+    this.#selectBlock(newBlock);
+    newBlock.querySelector('.page-editor__block-body')?.focus();
+    this.#updateDirtyState();
+    this.#scheduleLiveSync();
+  }
+
+  #insertBlockFromSlash(blockId) {
+    const block = this.__slashBlock;
+    this.#closeSlashMenu();
+    if (block) {
+      this.__inserterContext = { block, position: 'after' };
+    } else {
+      this.__inserterContext = { position: 'append' };
+    }
+    this.#insertBlockById(blockId);
+    if (block) {
+      block.remove();
+      this.#rebuildBlockGaps();
+    }
+  }
+
+  #shouldOpenSlashMenu(body) {
+    const text = (body.textContent || '').trim();
+    return text === '' || text === '/';
+  }
+
+  #isBlockBodyEmpty(body) {
+    const text = (body.textContent || '').replace(/\u00a0/g, '').trim();
+    return !text || text === '/';
+  }
+
+  #openSlashMenu(block) {
+    const { slashMenu } = this.#els();
+    if (!slashMenu) return;
+    this.__slashBlock = block || null;
+    slashMenu.innerHTML = BLOCK_DEFINITIONS.slice(0, 12).map((item) => `
+      <button type="button" class="page-editor__slash-item" data-block-id="${escapeHtml(item.id)}" role="option">
+        <i class="bi ${escapeHtml(item.icon)}" aria-hidden="true"></i>
+        <span>${escapeHtml(item.label)}</span>
+      </button>
+    `).join('');
+    slashMenu.hidden = false;
+    const body = block?.querySelector('.page-editor__block-body');
+    if (body) {
+      const rect = body.getBoundingClientRect();
+      slashMenu.style.top = `${Math.min(rect.top + 8, window.innerHeight - 280)}px`;
+      slashMenu.style.left = `${Math.min(rect.left + 8, window.innerWidth - 280)}px`;
+    }
+  }
+
+  #closeSlashMenu() {
+    const { slashMenu } = this.#els();
+    if (slashMenu) slashMenu.hidden = true;
+    this.__slashBlock = null;
+  }
+
+  #duplicateBlock(block) {
+    const clone = block.cloneNode(true);
+    clone.dataset.blockUid = createBlockUid();
+    block.after(clone);
+    this.#rebuildBlockGaps();
+    this.#selectBlock(clone);
+    this.#updateDirtyState();
+    this.#scheduleLiveSync();
+  }
+
+  #transformBlock(block, typeId) {
+    const definition = BLOCK_DEFINITION_BY_ID[typeId];
+    const body = block?.querySelector('.page-editor__block-body');
+    if (!definition || !body) return;
+
+    const preservedText = body.textContent?.trim() || '';
+    body.innerHTML = definition.html;
+    if (preservedText && ['paragraph', 'heading', 'quote'].includes(typeId)) {
+      const target = body.querySelector('p, h1, h2, h3, blockquote p');
+      if (target) target.textContent = preservedText;
+    }
+    hardenLiveEditorRoot(body);
+    applyBrandingToNode(block);
+    updateBlockChrome(block);
+    this.#renderBlockSidebar(block);
+    this.#updateDirtyState();
+    this.#scheduleLiveSync();
+  }
+
+  #renderBlockSidebar(block) {
+    const { blockSidebar, blockSidebarBody, blockSidebarType } = this.#els();
+    if (!blockSidebar || !blockSidebarBody) return;
+
+    if (!block || this.__activeMode !== 'page') {
+      blockSidebar.hidden = true;
+      return;
+    }
+
+    const typeId = block.dataset.blockType || 'paragraph';
+    const definition = getBlockDefinition(typeId);
+    blockSidebar.hidden = false;
+    if (blockSidebarType) {
+      blockSidebarType.textContent = definition.description || definition.label;
+    }
+
+    const transforms = (definition.transforms || [])
+      .map((id) => BLOCK_DEFINITION_BY_ID[id])
+      .filter(Boolean);
+
+    const body = block.querySelector('.page-editor__block-body');
+    const image = body?.querySelector('img');
+    const buttons = body ? [...body.querySelectorAll('a.pure-button, a.site-chip')] : [];
+    const spacer = body?.querySelector('.page-editor__spacer, [style*="height"]');
+
+    let fields = '';
+
+    if (transforms.length > 0) {
+      fields += `
+        <label class="page-editor__sidebar-field">
+          <span class="page-editor__sidebar-label">Transform to</span>
+          <select class="page-editor__sidebar-input" data-sidebar-field="transform">
+            <option value="">— Keep as ${escapeHtml(definition.label)} —</option>
+            ${transforms.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)}</option>`).join('')}
+          </select>
+        </label>
+      `;
+    }
+
+    if (image) {
+      fields += `
+        <label class="page-editor__sidebar-field">
+          <span class="page-editor__sidebar-label">Image URL</span>
+          <input type="url" class="page-editor__sidebar-input" data-sidebar-field="image-src" value="${escapeHtmlAttribute(image.getAttribute('src') || '')}">
+        </label>
+        <label class="page-editor__sidebar-field">
+          <span class="page-editor__sidebar-label">Alt text</span>
+          <input type="text" class="page-editor__sidebar-input" data-sidebar-field="image-alt" value="${escapeHtmlAttribute(image.getAttribute('alt') || '')}">
+        </label>
+      `;
+    }
+
+    buttons.slice(0, 4).forEach((button, index) => {
+      fields += `
+        <fieldset class="page-editor__sidebar-fieldset">
+          <legend class="page-editor__sidebar-label">Link ${index + 1}</legend>
+          <label class="page-editor__sidebar-field">
+            <span class="page-editor__sidebar-sublabel">Label</span>
+            <input type="text" class="page-editor__sidebar-input" data-sidebar-field="button-text" data-button-index="${index}" value="${escapeHtmlAttribute(button.textContent?.trim() || '')}">
+          </label>
+          <label class="page-editor__sidebar-field">
+            <span class="page-editor__sidebar-sublabel">URL</span>
+            <input type="text" class="page-editor__sidebar-input" data-sidebar-field="button-href" data-button-index="${index}" value="${escapeHtmlAttribute(button.getAttribute('href') || '')}">
+          </label>
+        </fieldset>
+      `;
+    });
+
+    if (typeId === 'spacer' && spacer) {
+      const heightMatch = String(spacer.style.height || '1.5rem').match(/([\d.]+)/);
+      const heightRem = heightMatch ? Number(heightMatch[1]) : 1.5;
+      fields += `
+        <label class="page-editor__sidebar-field">
+          <span class="page-editor__sidebar-label">Spacer height (rem)</span>
+          <input type="range" class="page-editor__sidebar-range" data-sidebar-field="spacer-height" min="0.5" max="6" step="0.25" value="${heightRem}">
+          <span class="page-editor__sidebar-range-value">${heightRem}rem</span>
+        </label>
+      `;
+    }
+
+    fields += `
+      <div class="page-editor__sidebar-actions">
+        <button type="button" class="page-editor__button page-editor__button--small" data-sidebar-action="duplicate">Duplicate block</button>
+        <button type="button" class="page-editor__button page-editor__button--small page-editor__sidebar-delete" data-sidebar-action="delete">Delete block</button>
+      </div>
+      <p class="page-editor__sidebar-hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> to move · <kbd>/</kbd> in empty block to insert</p>
+    `;
+
+    blockSidebarBody.innerHTML = fields;
+  }
+
+  #handleSidebarAction(control) {
+    const block = this.__selectedBlock;
+    if (!block) return;
+    const action = control.dataset.sidebarAction;
+    if (action === 'duplicate') this.#duplicateBlock(block);
+    else if (action === 'delete') this.#handleBlockAction('delete', block);
+  }
+
+  #handleSidebarInput(input) {
+    const block = this.__selectedBlock;
+    const body = block?.querySelector('.page-editor__block-body');
+    if (!block || !body) return;
+
+    const field = input.dataset.sidebarField;
+    if (field === 'transform' && input.value) {
+      this.#transformBlock(block, input.value);
+      input.value = '';
+      return;
+    }
+
+    if (field === 'image-src') {
+      const image = body.querySelector('img');
+      if (image) image.setAttribute('src', input.value.trim());
+    } else if (field === 'image-alt') {
+      const image = body.querySelector('img');
+      if (image) image.setAttribute('alt', input.value);
+    } else if (field === 'button-text' || field === 'button-href') {
+      const buttons = [...body.querySelectorAll('a.pure-button, a.site-chip')];
+      const index = Number(input.dataset.buttonIndex || 0);
+      const button = buttons[index];
+      if (button) {
+        if (field === 'button-text') button.textContent = input.value;
+        else button.setAttribute('href', input.value.trim() || '#');
+        hardenLiveEditorRoot(body);
+      }
+    } else if (field === 'spacer-height') {
+      const spacer = body.querySelector('.page-editor__spacer, [aria-hidden="true"][style*="height"]');
+      if (spacer) {
+        spacer.style.height = `${input.value}rem`;
+        const valueEl = input.parentElement?.querySelector('.page-editor__sidebar-range-value');
+        if (valueEl) valueEl.textContent = `${input.value}rem`;
+      }
+    }
+
+    this.#updateDirtyState();
+    this.#scheduleLiveSync();
+  }
+
+  #handleBlockAction(action, block, control) {
+    const blocksRoot = this.#els().blocksRoot();
+    if (!blocksRoot) return;
+
+    if (action === 'drag') return;
+
+    if (action === 'insert-at-gap') {
+      const gap = control?.closest('.page-editor__block-gap');
+      const next = gap?.nextElementSibling;
+      if (next?.classList.contains('page-editor__block')) {
+        this.#openInserter({ block: next, position: 'before' });
+      } else {
+        this.#openInserter({ position: 'append' });
+      }
+      return;
+    }
+
+    if (!block) return;
+
+    if (action === 'insert-before') {
+      this.#openInserter({ block, position: 'before' });
+      return;
+    }
+
+    if (action === 'insert-after') {
+      this.#openInserter({ block, position: 'after' });
+      return;
+    }
+
+    if (action === 'duplicate') {
+      this.#duplicateBlock(block);
+      return;
+    }
+
+    if (action === 'delete') {
+      const blockCount = blocksRoot.querySelectorAll(':scope > .page-editor__block').length;
+      if (blockCount <= 1) {
+        window.alert('A page must have at least one block.');
+        return;
+      }
+      if (!window.confirm('Delete this block?')) return;
+      const wasSelected = this.__selectedBlock === block;
+      block.remove();
+      this.#rebuildBlockGaps();
+      if (wasSelected) {
+        const fallback = blocksRoot.querySelector(':scope > .page-editor__block');
+        if (fallback) this.#selectBlock(fallback);
+        else this.#renderBlockSidebar(null);
+      }
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+      return;
+    }
+
+    if (action === 'move-up') {
+      let previous = block.previousElementSibling;
+      while (previous && !previous.classList.contains('page-editor__block')) {
+        previous = previous.previousElementSibling;
+      }
+      if (previous?.classList.contains('page-editor__block')) {
+        blocksRoot.insertBefore(block, previous);
+        this.#rebuildBlockGaps();
+        this.#selectBlock(block);
         this.#updateDirtyState();
         this.#scheduleLiveSync();
-      });
+      }
+      return;
+    }
+
+    if (action === 'move-down') {
+      let next = block.nextElementSibling;
+      while (next && !next.classList.contains('page-editor__block')) {
+        next = next.nextElementSibling;
+      }
+      if (next?.classList.contains('page-editor__block')) {
+        blocksRoot.insertBefore(next, block);
+        this.#rebuildBlockGaps();
+        this.#selectBlock(block);
+        this.#updateDirtyState();
+        this.#scheduleLiveSync();
+      }
     }
   }
 
   #handleFormatAction(button) {
-    const { pageContent } = this.#els();
-    if (!pageContent || this.__activeMode !== 'page') return;
+    if (this.__activeMode !== 'page') return;
 
-    pageContent.focus();
+    const body = this.#getActiveBlockBody();
+    if (!body) return;
+    body.focus();
 
     const action = button.dataset.action;
     if (action === 'insert-link') {
@@ -1055,38 +1839,7 @@ class PageEditor extends HTMLElement {
         return;
       }
       document.execCommand('createLink', false, url.trim());
-      this.#updateDirtyState();
-      this.#scheduleLiveSync();
-      return;
-    }
-
-    if (action === 'insert-image') {
-      const url = window.prompt('Enter the image URL');
-      if (!url?.trim()) return;
-      try {
-        new URL(url.trim(), window.location.href);
-      } catch (error) {
-        window.alert('Please enter a valid image URL.');
-        return;
-      }
-      const safeUrl = escapeHtmlAttribute(url.trim());
-      document.execCommand('insertHTML', false, `<img src="${safeUrl}" alt="">`);
-      this.#updateDirtyState();
-      this.#scheduleLiveSync();
-      return;
-    }
-
-    if (action === 'insert-table') {
-      document.execCommand('insertHTML', false, INSERT_TABLE_HTML);
-      hardenLiveEditorRoot(pageContent);
-      this.#updateDirtyState();
-      this.#scheduleLiveSync();
-      return;
-    }
-
-    if (action === 'insert-columns') {
-      document.execCommand('insertHTML', false, INSERT_COLUMNS_HTML);
-      hardenLiveEditorRoot(pageContent);
+      hardenLiveEditorRoot(body);
       this.#updateDirtyState();
       this.#scheduleLiveSync();
       return;
@@ -1095,11 +1848,8 @@ class PageEditor extends HTMLElement {
     const cmd = button.dataset.cmd;
     if (!cmd) return;
 
-    if (cmd === 'blockquote') {
-      document.execCommand('formatBlock', false, 'blockquote');
-    } else if (cmd === 'formatBlock') {
-      const tag = button.dataset.value || 'p';
-      document.execCommand('formatBlock', false, tag);
+    if (cmd === 'formatBlock') {
+      document.execCommand('formatBlock', false, button.dataset.value || 'p');
     } else {
       document.execCommand(cmd, false, button.dataset.value || null);
     }
@@ -1197,7 +1947,9 @@ class PageEditor extends HTMLElement {
   }
 
   #getLiveHtml() {
-    const { pageContent } = this.#els();
+    const { pageContent, blocksRoot } = this.#els();
+    const root = blocksRoot();
+    if (root) return serializeBlockCanvas(root);
     return pageContent?.innerHTML.trim() || '';
   }
 
@@ -1254,10 +2006,12 @@ class PageEditor extends HTMLElement {
     if (sourcePanel) sourcePanel.hidden = nextMode !== 'source';
 
     if (nextMode === 'source') {
+      this.#closeSlashMenu();
+      this.#renderBlockSidebar(null);
       requestAnimationFrame(() => this.__codeMirror?.refresh());
     } else if (nextMode === 'page') {
-      const { pageContent } = this.#els();
-      pageContent?.focus();
+      if (this.__selectedBlock) this.#renderBlockSidebar(this.__selectedBlock);
+      this.#getActiveBlockBody()?.focus();
     }
   }
 
