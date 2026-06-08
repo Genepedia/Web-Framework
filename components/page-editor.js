@@ -1340,7 +1340,12 @@ class PageEditor extends HTMLElement {
         this.#setStatus(`Pull request #${prNumber} created successfully.`);
         const { status } = this.#els();
         if (status) {
-          status.innerHTML = `Pull request <a href="${escapeHtml(prUrl)}" target="_blank" rel="noopener noreferrer">#${escapeHtml(String(prNumber || ''))}</a> created successfully.`;
+          const returnUrl = this.#els().back?.href || '';
+          const pageUrl = window.App?.resolveSiteUrl?.(this.__sourcePath)
+            || returnUrl
+            || new URL(this.__sourcePath, window.location.href).href;
+          const changesUrl = `${String(pageUrl).split('#')[0]}#changes`;
+          status.innerHTML = `Pull request <a href="${escapeHtml(prUrl)}" target="_blank" rel="noopener noreferrer">#${escapeHtml(String(prNumber || ''))}</a> created successfully. <a href="${escapeHtml(changesUrl)}">View pending edit</a>`;
           status.hidden = false;
           status.dataset.type = 'success';
         }

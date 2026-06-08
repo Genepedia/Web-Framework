@@ -1662,9 +1662,14 @@ class FullHeader extends HTMLElement {
             window.location.assign(resolveFromComponent('../pages/search.html?filter=matches'));
             break;
 
-          case 'edits':
-            window.location.assign(resolveFromComponent('../pages/review_edits.html'));
+          case 'edits': {
+            const pageToolbar = document.querySelector('full-page-toolbar[variant="page"]');
+            const target = pageToolbar
+              ? `${window.location.pathname}${window.location.search}#changes`
+              : `${resolveFromComponent('../pages/home.html')}#changes`;
+            window.location.assign(target);
             break;
+          }
           case 'view-all':
             window.location.assign(resolveFromComponent('../pages/notifications.html'));
             break;

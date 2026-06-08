@@ -288,6 +288,115 @@ body.theme-dark .site-chip:hover {
   font-size: 0.95rem;
 }
 
+.page-changes__pending {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+}
+
+.page-changes__pending-heading,
+.page-changes__history-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.page-changes__pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.page-changes__pending-item {
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border-radius: 8px;
+  background: var(--color-surface, #fff);
+  overflow: hidden;
+}
+
+.page-changes__pending-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.page-changes__pending-summary::-webkit-details-marker {
+  display: none;
+}
+
+.page-changes__pending-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.page-changes__pending-number {
+  color: var(--color-primary);
+}
+
+.page-changes__pending-meta,
+.page-changes__pending-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--color-subtle);
+  font-size: 0.92rem;
+}
+
+.page-changes__pending-body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
+}
+
+.page-changes__pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.page-changes__pending-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.page-changes__pending-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.page-changes__pending-button--approve {
+  background: #1f7a3b;
+  color: #fff;
+}
+
+.page-changes__pending-button--decline {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.18);
+  color: inherit;
+}
+
+body.theme-dark .page-changes__pending-item {
+  background: #171b20;
+}
+
+body.theme-dark .page-changes__pending-button--decline {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .page-changes {
   width: 100%;
   max-width: 100%;
