@@ -1564,7 +1564,10 @@ class PageEditor extends HTMLElement {
     const sessionUrl = resolveGitHubApiUrl('github-session.php');
     if (!sessionUrl) return null;
     try {
-      const response = await fetch(sessionUrl, { credentials: 'include' });
+      const response = await fetch(
+        sessionUrl,
+        window.App?.getGitHubFetchInit?.({ cache: 'no-store' }) || { credentials: 'include', cache: 'no-store' },
+      );
       if (!response.ok) return null;
       return await response.json();
     } catch (error) {
@@ -2519,7 +2522,19 @@ class PageEditor extends HTMLElement {
       const prTitle = String(publishForm.elements.namedItem('pr_title')?.value || '').trim();
       const prBody = String(publishForm.elements.namedItem('pr_body')?.value || '').trim();
 
-      const response = await fetch(submitUrl, {
+      const response = await fetch(submitUrl, window.App?.getGitHubFetchInit?.({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: this.__sourcePath,
+          content: fullHtml,
+          commit_message: commitMessage,
+          pr_title: prTitle,
+          pr_body: prBody,
+        }),
+      }) || {
         method: 'POST',
         credentials: 'include',
         headers: {

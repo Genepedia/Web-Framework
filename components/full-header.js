@@ -1308,6 +1308,68 @@ function resolveHeaderGitHubApiUrl(fileName) {
 const FULL_HEADER_GITHUB_LOGIN_URL = resolveHeaderGitHubApiUrl('github-login.php');
 const FULL_HEADER_GITHUB_SESSION_URL = resolveHeaderGitHubApiUrl('github-session.php');
 const FULL_HEADER_GITHUB_LOGOUT_URL = resolveHeaderGitHubApiUrl('github-logout.php');
+const FULL_HEADER_GITHUB_HANDOFF_URL = resolveHeaderGitHubApiUrl('github-handoff.php');
+
+function resolveGitHubFetchInit(init) {
+  if (window.App?.getGitHubFetchInit) {
+    return window.App.getGitHubFetchInit(init);
+  }
+
+  return {
+    ...(init || {}),
+    credentials: init?.credentials ?? 'include',
+    headers: {
+      Accept: 'application/json',
+      ...(init?.headers || {}),
+    },
+  };
+}
+
+function readStoredGitHubAccessToken() {
+  return window.App?.getGitHubAccessToken?.() || '';
+}
+
+function writeStoredGitHubAccessToken(token) {
+  if (window.App?.setGitHubAccessToken) {
+    window.App.setGitHubAccessToken(token);
+  }
+}
+
+function stripGitHubAuthQueryParams() {
+  const url = new URL(window.location.href);
+  let changed = false;
+
+  ['github_handoff', 'github_auth_error'].forEach((key) => {
+    if (!url.searchParams.has(key)) {
+      return;
+    }
+
+    url.searchParams.delete(key);
+    changed = true;
+  });
+
+  if (changed) {
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    history.replaceState({}, '', next);
+  }
+
+  return url;
+}
+
+function resolveGitHubAuthErrorMessage(code) {
+  switch (String(code || '').trim()) {
+    case 'state_mismatch':
+      return 'GitHub login could not be verified. Please try again.';
+    case 'missing_code':
+      return 'GitHub did not return an authorization code. Please try again.';
+    case 'token_exchange':
+      return 'GitHub could not complete sign-in. The site administrator may need to publish the GitHub App or fix OAuth settings.';
+    case 'user_profile':
+      return 'GitHub sign-in succeeded, but the profile could not be loaded. Please try again.';
+    default:
+      return 'GitHub sign-in failed. Please try again.';
+  }
+}
 
 function normalizeHeaderUser(user) {
   const displayName = String(user?.displayName || user?.name || '').trim();
@@ -1958,7 +2020,7 @@ class FullHeader extends HTMLElement {
       }
     };
 
-    const writeSession = (user) => {
+    const writeSession = (user, accessToken = null) => {
       try {
         if (user) {
           localStorage.setItem(FULL_HEADER_SESSION_KEY, JSON.stringify(normalizeHeaderUser(user)));
@@ -1967,6 +2029,12 @@ class FullHeader extends HTMLElement {
         }
       } catch {
         // ignore storage errors
+      }
+
+      if (accessToken !== null) {
+        writeStoredGitHubAccessToken(accessToken);
+      } else if (!user) {
+        writeStoredGitHubAccessToken('');
       }
     };
 
@@ -2056,7 +2124,10 @@ class FullHeader extends HTMLElement {
 
     loginButton.addEventListener('click', () => {
       const loginUrl = new URL(FULL_HEADER_GITHUB_LOGIN_URL, window.location.href);
-      loginUrl.searchParams.set('return_to', window.location.href);
+      const returnUrl = new URL(window.location.href);
+      returnUrl.searchParams.delete('github_handoff');
+      returnUrl.searchParams.delete('github_auth_error');
+      loginUrl.searchParams.set('return_to', returnUrl.href);
       window.location.assign(loginUrl.toString());
     });
 
@@ -2115,17 +2186,49 @@ class FullHeader extends HTMLElement {
     };
     document.addEventListener('keydown', this._authEscapeHandler);
 
+    const completeLoginHandoff = async () => {
+      const url = new URL(window.location.href);
+      const handoffCode = url.searchParams.get('github_handoff')?.trim();
+      if (!handoffCode || !FULL_HEADER_GITHUB_HANDOFF_URL) {
+        return false;
+      }
+
+      const response = await fetch(FULL_HEADER_GITHUB_HANDOFF_URL, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: handoffCode }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      stripGitHubAuthQueryParams();
+
+      if (!response.ok || !payload?.authenticated || !payload.user || !payload.access_token) {
+        throw new Error(payload?.message || 'GitHub login could not be completed.');
+      }
+
+      writeSession(payload.user, payload.access_token);
+      setLoggedIn(true, payload.user);
+      return true;
+    };
+
     const syncSession = async () => {
       try {
-        const response = await fetch(FULL_HEADER_GITHUB_SESSION_URL, {
-          credentials: 'include',
-          cache: 'no-store',
-          headers: {
-            Accept: 'application/json',
-          },
-        });
+        const response = await fetch(
+          FULL_HEADER_GITHUB_SESSION_URL,
+          resolveGitHubFetchInit({ cache: 'no-store' }),
+        );
 
         if (!response.ok) {
+          const cachedSession = readSession();
+          if (cachedSession && readStoredGitHubAccessToken()) {
+            setLoggedIn(true, cachedSession);
+            return;
+          }
+
           setLoggedIn(false);
           return;
         }
@@ -2136,10 +2239,16 @@ class FullHeader extends HTMLElement {
           return;
         }
 
+        const cachedSession = readSession();
+        if (cachedSession && readStoredGitHubAccessToken()) {
+          setLoggedIn(true, cachedSession);
+          return;
+        }
+
         setLoggedIn(false);
       } catch {
         const cachedSession = readSession();
-        if (cachedSession) {
+        if (cachedSession && readStoredGitHubAccessToken()) {
           setLoggedIn(true, cachedSession);
           return;
         }
@@ -2149,13 +2258,29 @@ class FullHeader extends HTMLElement {
     };
 
     const existingSession = readSession();
-    if (existingSession) {
+    if (existingSession && readStoredGitHubAccessToken()) {
       setLoggedIn(true, existingSession);
     } else {
       clearUser();
     }
 
-    void syncSession();
+    const authError = new URL(window.location.href).searchParams.get('github_auth_error');
+    if (authError) {
+      stripGitHubAuthQueryParams();
+      console.warn(resolveGitHubAuthErrorMessage(authError));
+    }
+
+    void (async () => {
+      try {
+        await completeLoginHandoff();
+      } catch (error) {
+        console.error(error);
+        writeSession(null);
+        clearUser();
+      }
+
+      await syncSession();
+    })();
   }
 
   disconnectedCallback() {
