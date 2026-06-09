@@ -489,7 +489,7 @@ full-page-toolbar:not([variant="people"]):not([variant="page"]):not([variant="no
 
 class FullPageToolbar extends HTMLElement {
 	static get observedAttributes() {
-		return ['title', 'page-title', 'edit-href', 'edit-source', 'edit-text', 'variant'];
+		return ['title', 'page-title', 'edit-href', 'edit-source', 'edit-content-selector', 'edit-text', 'variant'];
 	}
 
 	connectedCallback() {
@@ -566,6 +566,7 @@ class FullPageToolbar extends HTMLElement {
 		}
 		const editHref = this.getAttribute('edit-href')?.trim() || '';
 		const editSource = this.getAttribute('edit-source')?.trim() || '';
+		const editContentSelector = this.getAttribute('edit-content-selector')?.trim() || '';
 		const editText = this.getAttribute('edit-text');
 
 		const editButton = this.querySelector('.people-page__edit-button');
@@ -605,10 +606,11 @@ class FullPageToolbar extends HTMLElement {
 					return path.replace(/^\//, '');
 				})();
 
+				const editOptions = editContentSelector ? { contentSelector: editContentSelector } : {};
 				if (window.App?.resolvePageEditUrl) {
-					resolvedEditHref = window.App.resolvePageEditUrl(editSource, returnPath);
+					resolvedEditHref = window.App.resolvePageEditUrl(editSource, returnPath, editOptions);
 				} else if (window.AppPageEditor?.resolveEditorPageUrl) {
-					resolvedEditHref = window.AppPageEditor.resolveEditorPageUrl(editSource, returnPath);
+					resolvedEditHref = window.AppPageEditor.resolveEditorPageUrl(editSource, returnPath, editOptions);
 				}
 			}
 

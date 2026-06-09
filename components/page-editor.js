@@ -67,6 +67,13 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
           <span>Add block</span>
         </button>
         <span class="page-editor__format-separator" aria-hidden="true"></span>
+        <button type="button" class="page-editor__format-button" data-action="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
+          <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="page-editor__format-button" data-action="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        </button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline" aria-hidden="true"></i></button>
@@ -176,8 +183,12 @@ const BLOCK_DEFINITIONS = [
   { id: 'updates', category: 'layout', label: 'Updates list', icon: 'bi-clock-history', description: 'List of recent updates with links.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Latest Updates</h2><ul class="home-page__updates"><li><a href="#">First update</a></li><li><a href="#">Second update</a></li></ul></section>', transforms: ['section', 'list'] },
   { id: 'newsletter', category: 'layout', label: 'Newsletter', icon: 'bi-envelope', description: 'Email signup section.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Newsletter</h2><p class="home-page__section-text">Get occasional updates.</p><form class="home-page__newsletter-form" onsubmit="event.preventDefault();"><input class="home-page__newsletter-input" type="email" name="email" placeholder="you@example.com" required><button class="pure-button" type="submit">Subscribe</button></form></section>', transforms: ['section'] },
   { id: 'table', category: 'layout', label: 'Table', icon: 'bi-table', description: 'Data table with headers.', html: '<table class="site-table"><thead><tr><th scope="col">Header</th><th scope="col">Header</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>', transforms: [] },
-  { id: 'spacer', category: 'layout', label: 'Spacer', icon: 'bi-distribute-vertical', description: 'Vertical whitespace.', html: '<div class="page-editor__spacer" style="height:1.5rem" aria-hidden="true"></div>', transforms: [] },
+  { id: 'spacer', category: 'layout', label: 'Spacer', icon: 'bi-distribute-vertical', description: 'Vertical whitespace.', html: '<div style="height:1.5rem" aria-hidden="true"></div>', transforms: [] },
 ];
+
+const FRAGMENT_CONTENT_SELECTOR = '__fragment__';
+const HISTORY_DEBOUNCE_MS = 900;
+const HISTORY_MAX_ENTRIES = 60;
 
 let blockUidCounter = 0;
 
@@ -376,8 +387,63 @@ function escapeHtmlAttribute(value) {
     .replace(/</g, '&lt;');
 }
 
+function isFragmentContentSelector(contentSelector) {
+  const selector = String(contentSelector || '').trim();
+  return selector === FRAGMENT_CONTENT_SELECTOR || selector === 'fragment' || selector === 'body';
+}
+
+function isHtmlFragmentDocument(html) {
+  const trimmed = String(html || '').trim();
+  if (!trimmed) return false;
+  return !/<!DOCTYPE\s+html/i.test(trimmed) && !/<html[\s>]/i.test(trimmed);
+}
+
+function shouldUseFragmentMode(html, contentSelector) {
+  if (isFragmentContentSelector(contentSelector)) {
+    return true;
+  }
+  if (findWrappedContentRegion(html, contentSelector)) {
+    return false;
+  }
+  return isHtmlFragmentDocument(html);
+}
+
+function extractFragmentTitle(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.querySelector('h1')?.textContent?.trim() || '';
+}
+
+function applyFragmentTitleToHtml(html, pageTitle) {
+  const cleanTitle = String(pageTitle || '').trim();
+  if (!cleanTitle) {
+    return html;
+  }
+
+  const doc = new DOMParser().parseFromString(`<div data-root>${html}</div>`, 'text/html');
+  const root = doc.querySelector('[data-root]');
+  const h1 = root?.querySelector('h1');
+  if (!h1) {
+    return html;
+  }
+
+  h1.textContent = cleanTitle;
+  return [...root.childNodes].map((node) => node.outerHTML ?? node.textContent ?? '').join('');
+}
+
 function extractPageContent(html, contentSelector) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  const fragmentMode = shouldUseFragmentMode(html, contentSelector);
+  if (fragmentMode) {
+    const trimmed = String(html || '').trim();
+    return {
+      title: extractFragmentTitle(trimmed),
+      content: trimmed,
+      mainClassName: 'main-content',
+      document: doc,
+      fragmentMode: true,
+    };
+  }
+
   const region = findContentRegion(html, contentSelector);
   const container = doc.querySelector(contentSelector) || doc.querySelector('main');
   return {
@@ -385,6 +451,7 @@ function extractPageContent(html, contentSelector) {
     content: region?.inner ?? container?.innerHTML ?? '',
     mainClassName: parseClassFromOpenTag(region?.open) || container?.className?.trim() || 'main-content',
     document: doc,
+    fragmentMode: false,
   };
 }
 
@@ -441,7 +508,8 @@ function detectBlockType(html) {
   if (tag === 'h1' || tag === 'h2' || tag === 'h3') return 'heading';
   if (el.querySelector('.home-page__newsletter-form')) return 'newsletter';
   if (el.querySelector('.home-page__updates')) return 'updates';
-  if (cls.includes('page-editor__spacer') || (tag === 'div' && el.style.height && !el.textContent.trim())) return 'spacer';
+  if ((tag === 'div' && el.getAttribute('aria-hidden') === 'true' && el.style.height && !el.textContent.trim())
+    || cls.includes('page-editor__spacer')) return 'spacer';
   return 'paragraph';
 }
 
@@ -462,11 +530,19 @@ function getBlockDefinition(typeId) {
   return BLOCK_DEFINITION_BY_ID[typeId] || BLOCK_DEFINITION_BY_ID.paragraph;
 }
 
+function sanitizeBlockHtmlForPublish(html) {
+  return String(html || '')
+    .replace(/\sclass="page-editor__spacer"/gi, '')
+    .replace(/class="page-editor__spacer"\s*/gi, '');
+}
+
 function serializeBlockCanvas(blocksRoot) {
   if (!blocksRoot) return '';
   const blocks = [...blocksRoot.querySelectorAll(':scope > .page-editor__block')];
   return blocks
-    .map((block) => block.querySelector('.page-editor__block-body')?.innerHTML.trim() || '')
+    .map((block) => sanitizeBlockHtmlForPublish(
+      block.querySelector('.page-editor__block-body')?.innerHTML.trim() || '',
+    ))
     .filter(Boolean)
     .join('\n\n');
 }
@@ -525,7 +601,20 @@ function createBlockGapElement() {
   return gap;
 }
 
-function findContentRegion(html, contentSelector) {
+function findFragmentContentRegion(html) {
+  const trimmed = String(html || '');
+  return {
+    open: '',
+    inner: trimmed,
+    close: '',
+    innerStart: 0,
+    innerEnd: trimmed.length,
+    end: trimmed.length,
+    fragmentMode: true,
+  };
+}
+
+function findWrappedContentRegion(html, contentSelector) {
   const selector = String(contentSelector || '.main-content').trim();
   const patterns = [];
 
@@ -568,13 +657,35 @@ function findContentRegion(html, contentSelector) {
   return null;
 }
 
+function findContentRegion(html, contentSelector) {
+  const selector = String(contentSelector || '.main-content').trim();
+  if (isFragmentContentSelector(selector)) {
+    return findFragmentContentRegion(html);
+  }
+
+  const wrapped = findWrappedContentRegion(html, selector);
+  if (wrapped) {
+    return wrapped;
+  }
+
+  if (isHtmlFragmentDocument(html)) {
+    return findFragmentContentRegion(html);
+  }
+
+  return null;
+}
+
 function blockFingerprint(element) {
   const tag = element.tagName.toLowerCase();
+  const cls = String(element.className || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
   const text = (element.textContent || '')
     .replace(/\u00a0/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return `${tag}:${text}`;
+  return `${tag}:${cls}:${text}`;
 }
 
 function preserveContentRegionWhitespace(originalInner, mergedInner) {
@@ -706,13 +817,55 @@ function joinMergedBlocksPreservingGaps(mergedPieces, originalBlocks) {
   return result;
 }
 
-function findSimpleElementEnd(source, openIdx, tag) {
-  const closeTag = `</${tag}>`;
-  const closeIdx = source.indexOf(closeTag, openIdx);
-  if (closeIdx === -1) {
+function findBalancedElementEnd(source, openIdx, tag) {
+  const tagLower = tag.toLowerCase();
+  const openTagPattern = new RegExp(`<${tagLower}(?:\\s[^>]*)?>`, 'gi');
+  const closeTagPattern = new RegExp(`</${tagLower}>`, 'gi');
+  const selfClosePattern = new RegExp(`<${tagLower}(?:\\s[^>]*)?/>`, 'i');
+
+  const opening = source.slice(openIdx).match(openTagPattern);
+  if (!opening?.[0]) {
     return -1;
   }
-  return closeIdx + closeTag.length;
+
+  if (selfClosePattern.test(opening[0])) {
+    return openIdx + opening[0].length;
+  }
+
+  let depth = 1;
+  let pos = openIdx + opening[0].length;
+
+  while (depth > 0 && pos < source.length) {
+    openTagPattern.lastIndex = pos;
+    closeTagPattern.lastIndex = pos;
+
+    const nextOpen = openTagPattern.exec(source);
+    const nextClose = closeTagPattern.exec(source);
+
+    if (!nextClose) {
+      return -1;
+    }
+
+    const openAt = nextOpen ? nextOpen.index : Number.POSITIVE_INFINITY;
+    const closeAt = nextClose.index;
+
+    if (openAt < closeAt) {
+      const openTag = nextOpen[0];
+      if (!/<\/\s*>$/.test(openTag) && !/\/>$/.test(openTag)) {
+        depth += 1;
+      }
+      pos = openAt + openTag.length;
+      continue;
+    }
+
+    depth -= 1;
+    pos = closeAt + nextClose[0].length;
+    if (depth === 0) {
+      return pos;
+    }
+  }
+
+  return -1;
 }
 
 function extractContentBlocksExact(html) {
@@ -746,7 +899,7 @@ function extractContentBlocksExact(html) {
       blocks[blocks.length - 1].gapAfter = source.slice(previousEnd, openIdx);
     }
 
-    const endIdx = findSimpleElementEnd(source, openIdx, tag);
+    const endIdx = findBalancedElementEnd(source, openIdx, tag);
     if (endIdx === -1) {
       blocks.push({
         fingerprint: blockFingerprint(child),
@@ -885,6 +1038,14 @@ function replacePageContent(html, contentSelector, nextContent, pageTitle) {
   const mergedContent = mergeContentPreservingUnchanged(region.inner, nextContent);
   let result = html;
 
+  if (region.fragmentMode) {
+    result = mergedContent;
+    if (pageTitle) {
+      result = applyFragmentTitleToHtml(result, pageTitle);
+    }
+    return result;
+  }
+
   if (mergedContent !== region.inner) {
     result = `${html.slice(0, region.innerStart)}${mergedContent}${html.slice(region.innerEnd)}`;
   }
@@ -932,6 +1093,13 @@ class PageEditor extends HTMLElement {
     this.__slashBlock = null;
     this.__chromeSyncTimer = null;
     this.__selectedBlock = null;
+    this.__fragmentMode = false;
+    this.__history = [];
+    this.__historyIndex = -1;
+    this.__historyTimer = null;
+    this.__recordingHistory = false;
+    this.__slashHighlightIndex = 0;
+    this.__slashFilter = '';
     this.__contentSelector = this.getAttribute('content-selector')?.trim() || '.main-content';
     this.__beforeUnloadHandler = null;
     this.__navigationClickHandler = null;
@@ -1005,6 +1173,14 @@ class PageEditor extends HTMLElement {
           this.#openInserter({ position: 'append' });
           return;
         }
+        if (formatButton.dataset.action === 'undo') {
+          this.#undo();
+          return;
+        }
+        if (formatButton.dataset.action === 'redo') {
+          this.#redo();
+          return;
+        }
         this.#handleFormatAction(formatButton);
         return;
       }
@@ -1027,11 +1203,17 @@ class PageEditor extends HTMLElement {
     });
 
     root.addEventListener('input', (event) => {
-      if (event.target.closest('.page-editor__block-sidebar')) return;
+      if (event.target.closest('.page-editor__block-sidebar')) {
+        if (event.target.matches('[data-sidebar-field="spacer-height"]')) {
+          this.#handleSidebarInput(event.target);
+        }
+        return;
+      }
       if (!event.target.closest('.page-editor__block-body')) return;
       if (this.__syncing) return;
       const block = event.target.closest('.page-editor__block');
       this.#scheduleBlockChromeSync(block);
+      this.#scheduleHistorySnapshot();
       this.#updateDirtyState();
       this.#scheduleLiveSync();
     });
@@ -1045,10 +1227,60 @@ class PageEditor extends HTMLElement {
       if (this.__activeMode !== 'page') return;
       if (event.target.closest('.page-editor__inserter, .page-editor__publish-dialog')) return;
 
+      const { slashMenu } = this.#els();
+      const slashOpen = slashMenu && !slashMenu.hidden;
+
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        this.#undo();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        this.#redo();
+        return;
+      }
+
+      if (slashOpen) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          this.#moveSlashHighlight(1);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          this.#moveSlashHighlight(-1);
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          this.#activateSlashHighlight();
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          this.#closeSlashMenu();
+          return;
+        }
+      }
+
       const body = event.target.closest('.page-editor__block-body');
       if (body && event.key === '/' && this.#shouldOpenSlashMenu(body)) {
         event.preventDefault();
+        this.__slashFilter = '';
         this.#openSlashMenu(body.closest('.page-editor__block'));
+        return;
+      }
+
+      if (body && slashOpen && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        if (event.key === 'Backspace') {
+          this.__slashFilter = this.__slashFilter.slice(0, -1);
+        } else if (!event.key.startsWith('Arrow') && event.key !== 'Tab') {
+          this.__slashFilter += event.key;
+        }
+        this.#renderSlashMenu();
         return;
       }
 
@@ -1092,8 +1324,105 @@ class PageEditor extends HTMLElement {
     this.#els().titleInput?.addEventListener('input', () => {
       this.__pageTitle = this.#getPageTitle();
       document.title = `Edit ${this.__pageTitle}`;
+      this.#scheduleHistorySnapshot();
       this.#updateDirtyState();
     });
+  }
+
+  #captureHistoryState() {
+    return {
+      pageTitle: this.#getPageTitle(),
+      contentHtml: this.#getLiveHtml(),
+    };
+  }
+
+  #updateUndoRedoButtons() {
+    const undoButton = this.querySelector('[data-action="undo"]');
+    const redoButton = this.querySelector('[data-action="redo"]');
+    if (undoButton) undoButton.disabled = this.__historyIndex <= 0;
+    if (redoButton) redoButton.disabled = this.__historyIndex >= this.__history.length - 1;
+  }
+
+  #resetHistory() {
+    this.__history = [this.#captureHistoryState()];
+    this.__historyIndex = 0;
+    this.#updateUndoRedoButtons();
+  }
+
+  #scheduleHistorySnapshot() {
+    if (this.__recordingHistory) return;
+    if (this.__historyTimer) clearTimeout(this.__historyTimer);
+    this.__historyTimer = setTimeout(() => {
+      this.__historyTimer = null;
+      this.#pushHistorySnapshot({ immediate: true });
+    }, HISTORY_DEBOUNCE_MS);
+  }
+
+  #pushHistorySnapshot({ immediate = false } = {}) {
+    if (this.__recordingHistory) return;
+
+    if (!immediate) {
+      this.#scheduleHistorySnapshot();
+      return;
+    }
+
+    if (this.__historyTimer) {
+      clearTimeout(this.__historyTimer);
+      this.__historyTimer = null;
+    }
+
+    const state = this.#captureHistoryState();
+    const current = this.__history[this.__historyIndex];
+    if (current
+      && current.pageTitle === state.pageTitle
+      && current.contentHtml === state.contentHtml) {
+      return;
+    }
+
+    this.__history = this.__history.slice(0, this.__historyIndex + 1);
+    this.__history.push(state);
+    if (this.__history.length > HISTORY_MAX_ENTRIES) {
+      this.__history.shift();
+    } else {
+      this.__historyIndex += 1;
+    }
+    this.#updateUndoRedoButtons();
+  }
+
+  #restoreHistoryState(state) {
+    if (!state) return;
+    this.__recordingHistory = true;
+    try {
+      const { titleInput } = this.#els();
+      if (titleInput) titleInput.value = state.pageTitle;
+      this.__pageTitle = state.pageTitle;
+      document.title = `Edit ${state.pageTitle}`;
+      this.#populateLiveEditor(state.contentHtml || '<p></p>');
+      if (this.__codeMirror) {
+        this.__syncing = true;
+        try {
+          this.__codeMirror.setValue(state.contentHtml || '<p></p>');
+        } finally {
+          this.__syncing = false;
+        }
+      }
+      this.#updateDirtyState();
+    } finally {
+      this.__recordingHistory = false;
+      this.#updateUndoRedoButtons();
+    }
+  }
+
+  #undo() {
+    if (this.__historyIndex <= 0) return;
+    this.__historyIndex -= 1;
+    this.#restoreHistoryState(this.__history[this.__historyIndex]);
+  }
+
+  #redo() {
+    if (this.__historyIndex >= this.__history.length - 1) return;
+    this.__historyIndex += 1;
+    this.#restoreHistoryState(this.__history[this.__historyIndex]);
   }
 
   #setDirty(dirty) {
@@ -1123,6 +1452,7 @@ class PageEditor extends HTMLElement {
     this.__savedPageTitle = this.#getPageTitle();
     this.__savedContentHtml = this.__originalContentHtml || this.#getLiveHtml();
     this.#setDirty(false);
+    this.#resetHistory();
   }
 
   #updateDirtyState() {
@@ -1252,6 +1582,15 @@ class PageEditor extends HTMLElement {
     const sourcePath = normalizeSitePath(this.getAttribute('source') || params.get('source') || '');
     const returnPath = normalizeSitePath(this.getAttribute('return') || params.get('return') || sourcePath);
     const titleOverride = this.getAttribute('title')?.trim() || '';
+    const contentSelectorParam = (
+      this.getAttribute('content-selector')
+      || params.get('content-selector')
+      || params.get('content_selector')
+      || ''
+    ).trim();
+    if (contentSelectorParam) {
+      this.__contentSelector = contentSelectorParam;
+    }
     const { back, titleInput, source, pageContent } = this.#els();
 
     if (!sourcePath || !isAllowedEditorSource(sourcePath)) {
@@ -1280,6 +1619,10 @@ class PageEditor extends HTMLElement {
 
       this.__originalHtml = await response.text();
       const extracted = extractPageContent(this.__originalHtml, this.__contentSelector);
+      this.__fragmentMode = Boolean(extracted.fragmentMode);
+      if (this.__fragmentMode && !isFragmentContentSelector(this.__contentSelector)) {
+        this.__contentSelector = FRAGMENT_CONTENT_SELECTOR;
+      }
       this.__originalContentHtml = extracted.content;
       this.__mainClassName = extracted.mainClassName || 'main-content';
       this.__pageTitle = titleOverride || formatPageTitle(sourcePath, extracted.title);
@@ -1289,7 +1632,7 @@ class PageEditor extends HTMLElement {
       this.#renderInserterPanel('');
       this.#populateLiveEditor(extracted.content || '<p></p>');
       this.#setSavedBaseline();
-      this.#setStatus('Type / to insert blocks, drag to reorder, and use the sidebar for block settings. Switch to HTML for full control.');
+      this.#setStatus('Type / to insert blocks, drag to reorder, and use the sidebar for block settings. Ctrl+Z to undo. Switch to HTML for full control.');
     } catch (error) {
       console.error(error);
       if (pageContent) {
@@ -1316,6 +1659,7 @@ class PageEditor extends HTMLElement {
 
     const append = document.createElement('div');
     append.className = 'page-editor__canvas-append';
+    append.dataset.dropZone = 'append';
     append.innerHTML = '<button type="button" class="page-editor__add-block" data-action="open-inserter"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add block</span></button>';
     pageContent.appendChild(append);
 
@@ -1367,20 +1711,40 @@ class PageEditor extends HTMLElement {
       blocksRoot.querySelectorAll('.page-editor__block.is-drop-target').forEach((el) => {
         el.classList.remove('is-drop-target');
       });
+      appendZone?.classList.remove('is-drop-target');
     });
 
-    blocksRoot.addEventListener('dragover', (event) => {
+    const appendZone = pageContent.querySelector('.page-editor__canvas-append');
+
+    const handleDragOver = (event) => {
       if (!this.__draggingBlock) return;
       event.preventDefault();
       const target = event.target.closest('.page-editor__block');
+      const overAppend = Boolean(event.target.closest('.page-editor__canvas-append'));
       blocksRoot.querySelectorAll('.page-editor__block.is-drop-target').forEach((el) => {
         el.classList.toggle('is-drop-target', el === target && el !== this.__draggingBlock);
       });
-    });
+      appendZone?.classList.toggle('is-drop-target', overAppend);
+    };
 
-    blocksRoot.addEventListener('drop', (event) => {
+    blocksRoot.addEventListener('dragover', handleDragOver);
+    appendZone?.addEventListener('dragover', handleDragOver);
+
+    const handleDrop = (event) => {
       if (!this.__draggingBlock) return;
       event.preventDefault();
+      appendZone?.classList.remove('is-drop-target');
+
+      if (event.target.closest('.page-editor__canvas-append')) {
+        blocksRoot.appendChild(this.__draggingBlock);
+        this.#rebuildBlockGaps();
+        this.#selectBlock(this.__draggingBlock);
+        this.#pushHistorySnapshot({ immediate: true });
+        this.#updateDirtyState();
+        this.#scheduleLiveSync();
+        return;
+      }
+
       const target = event.target.closest('.page-editor__block');
       if (!target || target === this.__draggingBlock) return;
       const rect = target.getBoundingClientRect();
@@ -1392,9 +1756,13 @@ class PageEditor extends HTMLElement {
       }
       this.#rebuildBlockGaps();
       this.#selectBlock(this.__draggingBlock);
+      this.#pushHistorySnapshot({ immediate: true });
       this.#updateDirtyState();
       this.#scheduleLiveSync();
-    });
+    };
+
+    blocksRoot.addEventListener('drop', handleDrop);
+    appendZone?.addEventListener('drop', handleDrop);
   }
 
   #selectBlock(block) {
@@ -1515,6 +1883,7 @@ class PageEditor extends HTMLElement {
     this.#closeInserter();
     this.#selectBlock(newBlock);
     newBlock.querySelector('.page-editor__block-body')?.focus();
+    this.#pushHistorySnapshot({ immediate: true });
     this.#updateDirtyState();
     this.#scheduleLiveSync();
   }
@@ -1535,30 +1904,74 @@ class PageEditor extends HTMLElement {
   }
 
   #shouldOpenSlashMenu(body) {
-    const text = (body.textContent || '').trim();
-    return text === '' || text === '/';
+    return this.#isBlockBodyEmpty(body);
   }
 
   #isBlockBodyEmpty(body) {
-    const text = (body.textContent || '').replace(/\u00a0/g, '').trim();
-    return !text || text === '/';
+    const html = body?.innerHTML || '';
+    const text = (body?.textContent || '').replace(/\u00a0/g, '').trim();
+    if (text && text !== '/') {
+      return false;
+    }
+
+    const doc = new DOMParser().parseFromString(`<div data-root>${html}</div>`, 'text/html');
+    const root = doc.querySelector('[data-root]');
+    if (!root) {
+      return !text || text === '/';
+    }
+
+    const meaningfulChildren = [...root.childNodes].filter((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.replace(/\u00a0/g, '').trim());
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+      }
+      const tag = node.tagName.toLowerCase();
+      return tag !== 'br';
+    });
+
+    return meaningfulChildren.length === 0;
+  }
+
+  #getSlashMenuMatches() {
+    const needle = String(this.__slashFilter || '').trim().toLowerCase();
+    return BLOCK_DEFINITIONS.filter((block) => {
+      if (!needle) return true;
+      return block.label.toLowerCase().includes(needle)
+        || block.id.toLowerCase().includes(needle)
+        || block.category.toLowerCase().includes(needle);
+    });
+  }
+
+  #renderSlashMenu() {
+    const { slashMenu } = this.#els();
+    if (!slashMenu) return;
+
+    const matches = this.#getSlashMenuMatches();
+    if (this.__slashHighlightIndex >= matches.length) {
+      this.__slashHighlightIndex = Math.max(0, matches.length - 1);
+    }
+
+    slashMenu.innerHTML = matches.map((item, index) => `
+      <button type="button" class="page-editor__slash-item${index === this.__slashHighlightIndex ? ' is-highlighted' : ''}" data-block-id="${escapeHtml(item.id)}" role="option" aria-selected="${index === this.__slashHighlightIndex ? 'true' : 'false'}">
+        <i class="bi ${escapeHtml(item.icon)}" aria-hidden="true"></i>
+        <span>${escapeHtml(item.label)}</span>
+      </button>
+    `).join('') || '<p class="page-editor__slash-empty">No matching blocks</p>';
   }
 
   #openSlashMenu(block) {
     const { slashMenu } = this.#els();
     if (!slashMenu) return;
     this.__slashBlock = block || null;
-    slashMenu.innerHTML = BLOCK_DEFINITIONS.slice(0, 12).map((item) => `
-      <button type="button" class="page-editor__slash-item" data-block-id="${escapeHtml(item.id)}" role="option">
-        <i class="bi ${escapeHtml(item.icon)}" aria-hidden="true"></i>
-        <span>${escapeHtml(item.label)}</span>
-      </button>
-    `).join('');
+    this.__slashHighlightIndex = 0;
+    this.#renderSlashMenu();
     slashMenu.hidden = false;
     const body = block?.querySelector('.page-editor__block-body');
     if (body) {
       const rect = body.getBoundingClientRect();
-      slashMenu.style.top = `${Math.min(rect.top + 8, window.innerHeight - 280)}px`;
+      slashMenu.style.top = `${Math.min(rect.top + 8, window.innerHeight - 320)}px`;
       slashMenu.style.left = `${Math.min(rect.left + 8, window.innerWidth - 280)}px`;
     }
   }
@@ -1567,14 +1980,34 @@ class PageEditor extends HTMLElement {
     const { slashMenu } = this.#els();
     if (slashMenu) slashMenu.hidden = true;
     this.__slashBlock = null;
+    this.__slashFilter = '';
+    this.__slashHighlightIndex = 0;
+  }
+
+  #moveSlashHighlight(delta) {
+    const matches = this.#getSlashMenuMatches();
+    if (!matches.length) return;
+    this.__slashHighlightIndex = (this.__slashHighlightIndex + delta + matches.length) % matches.length;
+    this.#renderSlashMenu();
+    const { slashMenu } = this.#els();
+    slashMenu?.querySelector('.page-editor__slash-item.is-highlighted')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  #activateSlashHighlight() {
+    const matches = this.#getSlashMenuMatches();
+    const item = matches[this.__slashHighlightIndex];
+    if (!item) return;
+    this.#insertBlockFromSlash(item.id);
   }
 
   #duplicateBlock(block) {
-    const clone = block.cloneNode(true);
-    clone.dataset.blockUid = createBlockUid();
-    block.after(clone);
+    const body = block?.querySelector('.page-editor__block-body');
+    const newBlock = createBlockElement(body?.innerHTML || '<p></p>');
+    block.after(newBlock);
+    applyBrandingToNode(newBlock);
     this.#rebuildBlockGaps();
-    this.#selectBlock(clone);
+    this.#selectBlock(newBlock);
+    this.#pushHistorySnapshot({ immediate: true });
     this.#updateDirtyState();
     this.#scheduleLiveSync();
   }
@@ -1594,6 +2027,7 @@ class PageEditor extends HTMLElement {
     applyBrandingToNode(block);
     updateBlockChrome(block);
     this.#renderBlockSidebar(block);
+    this.#pushHistorySnapshot({ immediate: true });
     this.#updateDirtyState();
     this.#scheduleLiveSync();
   }
@@ -1621,7 +2055,7 @@ class PageEditor extends HTMLElement {
     const body = block.querySelector('.page-editor__block-body');
     const image = body?.querySelector('img');
     const buttons = body ? [...body.querySelectorAll('a.pure-button, a.site-chip')] : [];
-    const spacer = body?.querySelector('.page-editor__spacer, [style*="height"]');
+    const spacer = body?.querySelector('[aria-hidden="true"][style*="height"]');
 
     let fields = '';
 
@@ -1683,7 +2117,7 @@ class PageEditor extends HTMLElement {
         <button type="button" class="page-editor__button page-editor__button--small" data-sidebar-action="duplicate">Duplicate block</button>
         <button type="button" class="page-editor__button page-editor__button--small page-editor__sidebar-delete" data-sidebar-action="delete">Delete block</button>
       </div>
-      <p class="page-editor__sidebar-hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> to move · <kbd>/</kbd> in empty block to insert</p>
+      <p class="page-editor__sidebar-hint"><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>/</kbd> in empty block to insert</p>
     `;
 
     blockSidebarBody.innerHTML = fields;
@@ -1725,7 +2159,7 @@ class PageEditor extends HTMLElement {
         hardenLiveEditorRoot(body);
       }
     } else if (field === 'spacer-height') {
-      const spacer = body.querySelector('.page-editor__spacer, [aria-hidden="true"][style*="height"]');
+      const spacer = body.querySelector('[aria-hidden="true"][style*="height"]');
       if (spacer) {
         spacer.style.height = `${input.value}rem`;
         const valueEl = input.parentElement?.querySelector('.page-editor__sidebar-range-value');
@@ -1733,6 +2167,7 @@ class PageEditor extends HTMLElement {
       }
     }
 
+    this.#scheduleHistorySnapshot();
     this.#updateDirtyState();
     this.#scheduleLiveSync();
   }
@@ -1786,6 +2221,7 @@ class PageEditor extends HTMLElement {
         if (fallback) this.#selectBlock(fallback);
         else this.#renderBlockSidebar(null);
       }
+      this.#pushHistorySnapshot({ immediate: true });
       this.#updateDirtyState();
       this.#scheduleLiveSync();
       return;
@@ -1800,6 +2236,7 @@ class PageEditor extends HTMLElement {
         blocksRoot.insertBefore(block, previous);
         this.#rebuildBlockGaps();
         this.#selectBlock(block);
+        this.#pushHistorySnapshot({ immediate: true });
         this.#updateDirtyState();
         this.#scheduleLiveSync();
       }
@@ -1815,6 +2252,7 @@ class PageEditor extends HTMLElement {
         blocksRoot.insertBefore(next, block);
         this.#rebuildBlockGaps();
         this.#selectBlock(block);
+        this.#pushHistorySnapshot({ immediate: true });
         this.#updateDirtyState();
         this.#scheduleLiveSync();
       }
@@ -1874,6 +2312,7 @@ class PageEditor extends HTMLElement {
     this.__codeMirror.on('change', () => {
       if (this.__syncing) return;
       this.#scheduleSourceSync();
+      this.#scheduleHistorySnapshot();
       this.#updateDirtyState();
     });
     return this.__codeMirror;
@@ -2151,8 +2590,30 @@ if (!customElements.get('page-editor')) {
   customElements.define('page-editor', PageEditor);
 }
 
+function resolveEditorPageUrl(sourcePath, returnPath, options = {}) {
+  if (window.App?.resolvePageEditUrl) {
+    return window.App.resolvePageEditUrl(sourcePath, returnPath, options);
+  }
+
+  const cleanSource = normalizeSitePath(sourcePath);
+  const cleanReturn = normalizeSitePath(returnPath || cleanSource);
+  const editPath = normalizeSitePath('pages/edit.html');
+  const url = new URL(editPath, window.location.href);
+  url.searchParams.set('source', cleanSource);
+  if (cleanReturn) {
+    url.searchParams.set('return', cleanReturn);
+  }
+  const contentSelector = String(options?.contentSelector || '').trim();
+  if (contentSelector) {
+    url.searchParams.set('content-selector', contentSelector);
+  }
+  return url.href;
+}
+
 window.AppPageEditor = {
   resolveSourcePageUrl,
+  resolveEditorPageUrl,
+  resolvePageEditUrl: resolveEditorPageUrl,
   getEditSourcePath: () => {
     const params = new URLSearchParams(window.location.search);
     const fromQuery = params.get('source')?.trim();

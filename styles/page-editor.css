@@ -301,6 +301,15 @@ body.theme-dark .page-editor__format-toolbar {
   background: var(--background-color-interactive-subtle, #f1f3f5);
 }
 
+.page-editor__format-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.page-editor__format-button:disabled:hover {
+  background: transparent;
+}
+
 .page-editor__format-button--primary {
   gap: 0.35rem;
   padding: 0 0.75rem;
@@ -509,6 +518,14 @@ body.theme-dark .page-editor__block-toolbar {
   display: flex;
   justify-content: center;
   padding: 1rem 0 0.5rem;
+  border-radius: var(--border-radius-base, 0.125rem);
+  transition: background-color 0.15s ease;
+}
+
+.page-editor__canvas-append.is-drop-target {
+  background: rgba(51, 102, 204, 0.08);
+  outline: 2px dashed rgba(51, 102, 204, 0.35);
+  outline-offset: 4px;
 }
 
 .page-editor__add-block {
@@ -783,12 +800,19 @@ body.theme-dark .page-editor__block-sidebar {
   cursor: pointer;
 }
 
-.page-editor__slash-item:hover {
+.page-editor__slash-item:hover,
+.page-editor__slash-item.is-highlighted {
   background: rgba(51, 102, 204, 0.08);
 }
 
 .page-editor__slash-item i {
   color: var(--color-progressive, #3366cc);
+}
+
+.page-editor__slash-empty {
+  margin: 0.35rem 0.55rem;
+  color: var(--color-subtle, #54595d);
+  font-size: 0.85rem;
 }
 
 .page-editor__codemirror {
