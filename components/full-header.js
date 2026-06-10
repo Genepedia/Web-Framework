@@ -1210,6 +1210,7 @@ full-header.portal-index .header-chrome__tools {
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-house" aria-hidden="true"></i><span>Home</span></a>
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-search" aria-hidden="true"></i><span>Search</span></a>
     <a class="header-chrome__sidebar-link" href="#" data-action="random-profile"><i class="bi bi-shuffle" aria-hidden="true"></i><span>Random</span></a>
+    <a class="header-chrome__sidebar-link" href="#" data-action="new-tree"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>New tree</span></a>
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-question-circle" aria-hidden="true"></i><span>Help</span></a>
   </nav>
   <div class="header-chrome__sidebar-footer">
@@ -1519,6 +1520,18 @@ async function getRandomProfileCandidates() {
     .filter(Boolean);
 }
 
+async function confirmLeaveEditorIfNeeded() {
+  const editor = document.querySelector('page-editor');
+  if (!editor || typeof editor.confirmLeaveWithoutSaving !== 'function') {
+    return true;
+  }
+  const confirmed = await editor.confirmLeaveWithoutSaving();
+  if (confirmed && typeof editor.discardUnsavedEdits === 'function') {
+    editor.discardUnsavedEdits();
+  }
+  return confirmed;
+}
+
 async function navigateToRandomProfile() {
   if (typeof window.App?.navigateToRandomProfile === 'function') {
     await window.App.navigateToRandomProfile();
@@ -1548,6 +1561,27 @@ async function navigateToRandomProfile() {
 
   const chosenId = pool[Math.floor(Math.random() * pool.length)];
   window.location.assign(window.PeopleRegistry.resolvePersonProfileUrl(chosenId));
+}
+
+async function navigateToNewTree() {
+  if (typeof window.App?.navigateToNewTree === 'function') {
+    await window.App.navigateToNewTree();
+    return;
+  }
+
+  try {
+    await ensurePeopleRegistryScript();
+  } catch (error) {
+    console.warn('New tree navigation failed: could not load people registry.', error);
+    return;
+  }
+
+  const people = await window.PeopleRegistry.loadPeopleRegistry();
+  const numericIds = people
+    .map((person) => Number.parseInt(String(person?.id || ''), 10))
+    .filter((id) => Number.isFinite(id));
+  const nextId = numericIds.length ? Math.max(...numericIds) + 1 : 1;
+  window.location.assign(resolveSiteUrl(`people/edit.html?person=${nextId}`));
 }
 
 class FullHeader extends HTMLElement {
@@ -1602,12 +1636,31 @@ class FullHeader extends HTMLElement {
 
     const randomProfileLink = this.querySelector('[data-action="random-profile"]');
     if (randomProfileLink) {
-      randomProfileLink.addEventListener('click', (event) => {
+      randomProfileLink.addEventListener('click', async (event) => {
         event.preventDefault();
+        const confirmed = await confirmLeaveEditorIfNeeded();
+        if (!confirmed) {
+          return;
+        }
         if (!window.matchMedia('(min-width: 992px)').matches) {
           this._closeSidebar?.();
         }
         void navigateToRandomProfile();
+      });
+    }
+
+    const newTreeLink = this.querySelector('[data-action="new-tree"]');
+    if (newTreeLink) {
+      newTreeLink.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const confirmed = await confirmLeaveEditorIfNeeded();
+        if (!confirmed) {
+          return;
+        }
+        if (!window.matchMedia('(min-width: 992px)').matches) {
+          this._closeSidebar?.();
+        }
+        void navigateToNewTree();
       });
     }
 
@@ -1949,7 +2002,7 @@ class FullHeader extends HTMLElement {
 
   #initSidebar() {
     if (this.classList.contains('sidebar-disabled')) {
-      this._closeSidebar = () => {};
+      this._closeSidebar = () => { };
       return;
     }
 

@@ -833,6 +833,30 @@ body.theme-dark .page-editor__block-sidebar {
   color: var(--color-destructive, #d73333);
 }
 
+.page-editor__leave-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.page-editor__leave-overlay[hidden] {
+  display: none !important;
+}
+
+.page-editor__leave-panel {
+  width: min(32rem, 100%);
+  border-radius: var(--border-radius-base, 0.125rem);
+  background: var(--background-color-base, #ffffff);
+  color: var(--color-base, #202122);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
 .page-editor__publish-dialog {
   width: min(960px, calc(100vw - 2rem));
   max-height: calc(100vh - 2rem);

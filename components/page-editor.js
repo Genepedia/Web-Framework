@@ -165,6 +165,23 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
       </footer>
     </form>
   </dialog>
+
+  <div class="page-editor__leave-overlay" hidden>
+    <div class="page-editor__leave-panel" role="dialog" aria-modal="true" aria-labelledby="page-editor-leave-title">
+      <header class="page-editor__publish-header">
+        <h2 id="page-editor-leave-title" class="page-editor__publish-title">Unsaved changes</h2>
+      </header>
+      <p class="page-editor__publish-intro">
+        You have unsaved changes on this page. Leave without saving?
+      </p>
+      <footer class="page-editor__publish-footer">
+        <button type="button" class="page-editor__button" data-action="close-leave">Stay on page</button>
+        <button type="button" class="page-editor__button page-editor__button--save" data-action="confirm-leave">
+          Leave without saving
+        </button>
+      </footer>
+    </div>
+  </div>
 </div>
 `;
 
@@ -1224,6 +1241,10 @@ class PageEditor extends HTMLElement {
       document.removeEventListener('click', this.__navigationClickHandler, true);
       this.__navigationClickHandler = null;
     }
+    if (this.__leaveKeydownHandler) {
+      document.removeEventListener('keydown', this.__leaveKeydownHandler);
+      this.__leaveKeydownHandler = null;
+    }
     if (this.__selectionChangeHandler) {
       document.removeEventListener('selectionchange', this.__selectionChangeHandler);
       this.__selectionChangeHandler = null;
@@ -1239,6 +1260,25 @@ class PageEditor extends HTMLElement {
 
   setMode(mode) {
     return this.#setMode(mode);
+  }
+
+  refreshDirtyState() {
+    this.#updateDirtyState();
+  }
+
+  isDirty() {
+    return Boolean(this.__dirty);
+  }
+
+  confirmLeaveWithoutSaving() {
+    if (!this.__dirty) {
+      return Promise.resolve(true);
+    }
+    return this.#confirmLeaveWithoutSaving();
+  }
+
+  discardUnsavedEdits() {
+    this.#discardUnsavedEdits();
   }
 
   #bindUi() {
@@ -1765,7 +1805,17 @@ class PageEditor extends HTMLElement {
   #setSavedBaseline() {
     this.#flushPendingSync();
     this.__savedPageTitle = this.#getPageTitle();
-    this.__savedContentHtml = this.__originalContentHtml || this.#getLiveHtml();
+    const currentHtml = this.#getSourceHtml();
+    this.__savedContentHtml = currentHtml || this.__originalContentHtml || '';
+    if (Array.isArray(window.__extraDirtyStateResetCallbacks)) {
+      for (const reset of window.__extraDirtyStateResetCallbacks) {
+        try {
+          reset();
+        } catch (error) {
+          console.warn('extra dirty state reset callback threw', error);
+        }
+      }
+    }
     this.#setDirty(false);
     this.#resetHistory();
   }
@@ -1788,18 +1838,95 @@ class PageEditor extends HTMLElement {
     }
 
     const titleChanged = this.#getPageTitle() !== this.__savedPageTitle;
+    const contentBaseline = this.__savedContentHtml || this.__originalContentHtml || '';
     const mergedContent = mergeContentPreservingUnchanged(
-      this.__originalContentHtml || this.__savedContentHtml,
+      contentBaseline,
       this.#getSourceHtml(),
     );
-    const contentChanged = mergedContent !== (this.__originalContentHtml || this.__savedContentHtml);
-    this.#setDirty(titleChanged || contentChanged);
+    const contentChanged = mergedContent !== contentBaseline;
+    let externalDirty = false;
+    if (Array.isArray(window.__extraDirtyStateProviders)) {
+      externalDirty = window.__extraDirtyStateProviders.some((provider) => {
+        try {
+          return Boolean(provider());
+        } catch (error) {
+          console.warn('extra dirty state provider threw', error);
+          return false;
+        }
+      });
+    }
+    this.#setDirty(titleChanged || contentChanged || externalDirty);
+  }
+
+  #discardUnsavedEdits() {
+    document.querySelector('profile-infobox-editor')?.discardUnsavedChanges?.();
+    this.#setDirty(false);
+  }
+
+  #completeLeaveNavigation(url) {
+    if (!url) {
+      return;
+    }
+    this.#discardUnsavedEdits();
+    window.location.href = url;
+  }
+
+  #mountLeaveOverlay() {
+    const { leaveOverlay } = this.#els();
+    if (!leaveOverlay) {
+      return null;
+    }
+    if (!this.__leaveOverlayHome) {
+      this.__leaveOverlayHome = { parent: leaveOverlay.parentNode, next: leaveOverlay.nextSibling };
+    }
+    if (leaveOverlay.parentNode !== document.body) {
+      document.body.append(leaveOverlay);
+    }
+    return leaveOverlay;
+  }
+
+  #restoreLeaveOverlay() {
+    const { leaveOverlay } = this.#els();
+    if (!leaveOverlay || !this.__leaveOverlayHome?.parent) {
+      return;
+    }
+    if (leaveOverlay.parentNode === document.body) {
+      this.__leaveOverlayHome.parent.insertBefore(leaveOverlay, this.__leaveOverlayHome.next);
+    }
+  }
+
+  #closeLeavePrompt(confirmed) {
+    const { leaveOverlay } = this.#els();
+    if (leaveOverlay) {
+      leaveOverlay.hidden = true;
+    }
+    this.#restoreLeaveOverlay();
+    const resolve = this.__leaveDialogResolve;
+    this.__leaveDialogResolve = null;
+    resolve?.(Boolean(confirmed));
   }
 
   #confirmLeaveWithoutSaving() {
-    return window.confirm(
-      'You have unsaved changes on this page. Leave without saving?',
-    );
+    const leaveOverlay = this.#mountLeaveOverlay();
+    if (!leaveOverlay) {
+      try {
+        return Promise.resolve(window.confirm(
+          'You have unsaved changes on this page. Leave without saving?',
+        ));
+      } catch (error) {
+        return Promise.resolve(true);
+      }
+    }
+
+    if (this.__leaveDialogResolve) {
+      this.#closeLeavePrompt(false);
+    }
+
+    return new Promise((resolve) => {
+      this.__leaveDialogResolve = resolve;
+      leaveOverlay.hidden = false;
+      leaveOverlay.querySelector('[data-action="confirm-leave"]')?.focus?.();
+    });
   }
 
   #bindNavigationGuard() {
@@ -1816,30 +1943,71 @@ class PageEditor extends HTMLElement {
       const link = event.target.closest('a[href]');
       if (!link) return;
       if (link.target === '_blank' || link.hasAttribute('download')) return;
+      if (link.dataset.action) return;
 
       const href = link.getAttribute('href');
       if (!href || href === '#' || href.startsWith('#') || href.startsWith('javascript:')) return;
 
-      if (link.closest('.page-editor__publish-dialog, .page-editor__inserter')) return;
+      if (link.closest('.page-editor__publish-dialog, .page-editor__inserter, .page-editor__leave-overlay')) return;
 
       try {
         const nextUrl = new URL(link.href, window.location.href);
         const currentUrl = new URL(window.location.href);
         if (nextUrl.origin === currentUrl.origin
           && nextUrl.pathname === currentUrl.pathname
-          && nextUrl.search === currentUrl.search) {
+          && nextUrl.search === currentUrl.search
+          && nextUrl.hash === currentUrl.hash) {
           return;
         }
       } catch (error) {
         return;
       }
 
-      if (!this.#confirmLeaveWithoutSaving()) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      const destination = link.href;
+      this.__pendingLeaveUrl = destination;
+      void this.#confirmLeaveWithoutSaving().then((confirmed) => {
+        const url = this.__pendingLeaveUrl || destination;
+        this.__pendingLeaveUrl = '';
+        if (confirmed) {
+          this.#completeLeaveNavigation(url);
+        }
+      });
     };
     document.addEventListener('click', this.__navigationClickHandler, true);
+
+    const { leaveOverlay } = this.#els();
+    leaveOverlay?.addEventListener('click', (event) => {
+      if (event.target === leaveOverlay) {
+        event.preventDefault();
+        this.__pendingLeaveUrl = '';
+        this.#closeLeavePrompt(false);
+        return;
+      }
+
+      const action = event.target.closest('[data-action]')?.dataset?.action;
+      if (action === 'close-leave') {
+        event.preventDefault();
+        this.__pendingLeaveUrl = '';
+        this.#closeLeavePrompt(false);
+      } else if (action === 'confirm-leave') {
+        event.preventDefault();
+        this.#closeLeavePrompt(true);
+      }
+    });
+
+    this.__leaveKeydownHandler = (event) => {
+      const { leaveOverlay: activeLeaveOverlay } = this.#els();
+      if (event.key !== 'Escape' || !activeLeaveOverlay || activeLeaveOverlay.hidden) {
+        return;
+      }
+      event.preventDefault();
+      this.__pendingLeaveUrl = '';
+      this.#closeLeavePrompt(false);
+    };
+    document.addEventListener('keydown', this.__leaveKeydownHandler);
   }
 
   #els() {
@@ -1855,6 +2023,7 @@ class PageEditor extends HTMLElement {
       sourcePanel: this.querySelector('[data-panel="source"]'),
       modeTabs: [...this.querySelectorAll('.page-editor__mode-tab')],
       publishDialog: this.querySelector('.page-editor__publish-dialog'),
+      leaveOverlay: this.querySelector('.page-editor__leave-overlay'),
       publishForm: this.querySelector('.page-editor__publish-form'),
       inserterDialog: this.querySelector('.page-editor__inserter'),
       inserterBody: this.querySelector('.page-editor__inserter-body'),
