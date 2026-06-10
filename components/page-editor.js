@@ -37,6 +37,7 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
     </div>
     <div class="page-editor__header-end">
       <div class="page-editor__save-group">
+        <p class="page-editor__counts" aria-live="polite" hidden></p>
         <p class="page-editor__unsaved-notice" hidden>Unsaved changes</p>
         <button type="button" class="page-editor__button page-editor__button--save" data-action="publish">
           <i class="bi bi-check2-circle" aria-hidden="true"></i>
@@ -77,6 +78,7 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
         <button type="button" class="page-editor__format-button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="strikeThrough" title="Strikethrough"><i class="bi bi-type-strikethrough" aria-hidden="true"></i></button>
         <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="h2" title="Heading 2">H2</button>
         <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="h3" title="Heading 3">H3</button>
@@ -85,21 +87,28 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
         <button type="button" class="page-editor__format-button" data-cmd="insertUnorderedList" title="Bullet list"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-cmd="insertOrderedList" title="Numbered list"><i class="bi bi-list-ol" aria-hidden="true"></i></button>
         <button type="button" class="page-editor__format-button" data-action="insert-link" title="Link"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
+        <button type="button" class="page-editor__format-button" data-cmd="justifyLeft" title="Align left"><i class="bi bi-text-left" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="justifyCenter" title="Align centre"><i class="bi bi-text-center" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="justifyRight" title="Align right"><i class="bi bi-text-right" aria-hidden="true"></i></button>
+        <span class="page-editor__format-separator" aria-hidden="true"></span>
         <button type="button" class="page-editor__format-button" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser" aria-hidden="true"></i></button>
       </div>
       <div class="page-editor__layout">
         <div class="page-editor__page-frame">
           <div class="page-editor__page-content" aria-label="Editable page canvas"></div>
         </div>
-        <aside class="page-editor__block-sidebar" hidden aria-label="Block settings">
-          <header class="page-editor__block-sidebar-header">
-            <h3 class="page-editor__block-sidebar-title">Block settings</h3>
-            <p class="page-editor__block-sidebar-type"></p>
-          </header>
-          <div class="page-editor__block-sidebar-body"></div>
-        </aside>
       </div>
       <div class="page-editor__slash-menu" role="listbox" aria-label="Insert block" hidden></div>
+      <div class="page-editor__inline-toolbar" role="toolbar" aria-label="Text formatting" hidden>
+        <button type="button" class="page-editor__format-button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="strikeThrough" title="Strikethrough"><i class="bi bi-type-strikethrough" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-action="inline-code" title="Inline code"><i class="bi bi-code" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-action="insert-link" title="Link"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
+        <button type="button" class="page-editor__format-button" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser" aria-hidden="true"></i></button>
+      </div>
     </div>
     <div class="page-editor__panel page-editor__panel--source" data-panel="source" hidden>
       <div class="page-editor__source-bar">
@@ -184,6 +193,9 @@ const BLOCK_DEFINITIONS = [
   { id: 'newsletter', category: 'layout', label: 'Newsletter', icon: 'bi-envelope', description: 'Email signup section.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Newsletter</h2><p class="home-page__section-text">Get occasional updates.</p><form class="home-page__newsletter-form" onsubmit="event.preventDefault();"><input class="home-page__newsletter-input" type="email" name="email" placeholder="you@example.com" required><button class="pure-button" type="submit">Subscribe</button></form></section>', transforms: ['section'] },
   { id: 'table', category: 'layout', label: 'Table', icon: 'bi-table', description: 'Data table with headers.', html: '<table class="site-table"><thead><tr><th scope="col">Header</th><th scope="col">Header</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>', transforms: [] },
   { id: 'spacer', category: 'layout', label: 'Spacer', icon: 'bi-distribute-vertical', description: 'Vertical whitespace.', html: '<div style="height:1.5rem" aria-hidden="true"></div>', transforms: [] },
+  // Internal block types for <include> fragments; hidden from the inserter.
+  { id: 'include-fragment', category: 'layout', label: 'Included fragment', icon: 'bi-box-arrow-in-down', description: 'Content from an included fragment file. Edits are saved back to that file.', html: '<div data-editor-include=""></div>', transforms: [], hidden: true },
+  { id: 'include-locked', category: 'layout', label: 'Included fragment', icon: 'bi-file-earmark-code', description: 'A fragment included from another file. Edit that file to change it.', html: '<include src=""></include>', transforms: [], hidden: true, locked: true },
 ];
 
 const FRAGMENT_CONTENT_SELECTOR = '__fragment__';
@@ -198,6 +210,38 @@ function createBlockUid() {
 }
 
 const BLOCK_DEFINITION_BY_ID = Object.fromEntries(BLOCK_DEFINITIONS.map((block) => [block.id, block]));
+
+/**
+ * Optional named block libraries that sites can register (e.g. a "profile"
+ * library with infobox/figure blocks). A <page-editor block-library="name">
+ * instance offers those blocks in its inserter and slash menu in addition to
+ * the base set. Libraries can also provide a detect(el, html) function so
+ * existing markup is labelled with the right block type.
+ */
+const BLOCK_LIBRARIES = new Map();
+
+function registerBlockLibrary(name, library) {
+  const key = String(name || '').trim();
+  if (!key || !library || typeof library !== 'object') return;
+
+  const blocks = Array.isArray(library.blocks) ? library.blocks.filter((block) => block?.id) : [];
+  const categories = Array.isArray(library.categories) ? library.categories.filter((category) => category?.id) : [];
+  const detect = typeof library.detect === 'function' ? library.detect : null;
+
+  BLOCK_LIBRARIES.set(key, { blocks, categories, detect });
+  blocks.forEach((block) => {
+    BLOCK_DEFINITION_BY_ID[block.id] = block;
+  });
+}
+
+// Adopt libraries queued by scripts that loaded before this one.
+(() => {
+  const queued = Array.isArray(window.PageEditorBlocks?.__queue) ? window.PageEditorBlocks.__queue : [];
+  window.PageEditorBlocks = { registerLibrary: registerBlockLibrary };
+  queued.forEach((entry) => {
+    if (Array.isArray(entry)) registerBlockLibrary(entry[0], entry[1]);
+  });
+})();
 
 let codeMirrorLoaderPromise = null;
 let beautifyLoaderPromise = null;
@@ -489,6 +533,18 @@ function detectBlockType(html) {
   const el = root?.firstElementChild;
   if (!el) return 'paragraph';
 
+  for (const library of BLOCK_LIBRARIES.values()) {
+    try {
+      const id = library.detect?.(el, html);
+      if (id && BLOCK_DEFINITION_BY_ID[id]) return id;
+    } catch (error) {
+      // ignore detector failures and fall through to the base rules
+    }
+  }
+
+  if (el.hasAttribute('data-editor-include')) return 'include-fragment';
+  if (el.tagName.toLowerCase() === 'include' || el.hasAttribute('data-include')) return 'include-locked';
+
   const cls = String(el.className || '');
   const tag = el.tagName.toLowerCase();
 
@@ -524,16 +580,47 @@ function updateBlockChrome(block) {
   const icon = block.querySelector('.page-editor__block-type i');
   if (label) label.textContent = definition.label;
   if (icon) icon.className = `bi ${definition.icon}`;
+  applyBlockLockState(block, body, definition);
+}
+
+function applyBlockLockState(block, body, definition) {
+  const locked = Boolean(definition?.locked);
+  block.classList.toggle('is-locked', locked);
+  if (body) {
+    body.setAttribute('contenteditable', locked ? 'false' : 'true');
+  }
 }
 
 function getBlockDefinition(typeId) {
   return BLOCK_DEFINITION_BY_ID[typeId] || BLOCK_DEFINITION_BY_ID.paragraph;
 }
 
+function restoreEditorAssetUrls(html) {
+  const value = String(html || '');
+  if (!value.includes('data-editor-src')) {
+    return value;
+  }
+
+  const doc = new DOMParser().parseFromString(`<div data-root>${value}</div>`, 'text/html');
+  const root = doc.querySelector('[data-root]');
+  if (!root) {
+    return value;
+  }
+
+  root.querySelectorAll('[data-editor-src]').forEach((el) => {
+    el.setAttribute('src', el.getAttribute('data-editor-src') || '');
+    el.removeAttribute('data-editor-src');
+  });
+
+  return root.innerHTML;
+}
+
 function sanitizeBlockHtmlForPublish(html) {
-  return String(html || '')
-    .replace(/\sclass="page-editor__spacer"/gi, '')
-    .replace(/class="page-editor__spacer"\s*/gi, '');
+  return restoreEditorAssetUrls(
+    String(html || '')
+      .replace(/\sclass="page-editor__spacer"/gi, '')
+      .replace(/class="page-editor__spacer"\s*/gi, ''),
+  );
 }
 
 function serializeBlockCanvas(blocksRoot) {
@@ -567,6 +654,9 @@ function createBlockElement(fragmentHtml) {
         <span class="page-editor__block-type-label">${escapeHtml(definition.label)}</span>
       </span>
       <div class="page-editor__block-actions">
+        <button type="button" class="page-editor__block-tool" data-block-action="settings" title="Block settings" aria-label="Block settings">
+          <i class="bi bi-gear" aria-hidden="true"></i>
+        </button>
         <button type="button" class="page-editor__block-tool" data-block-action="duplicate" title="Duplicate" aria-label="Duplicate block">
           <i class="bi bi-copy" aria-hidden="true"></i>
         </button>
@@ -591,6 +681,7 @@ function createBlockElement(fragmentHtml) {
     body.innerHTML = fragmentHtml;
     hardenLiveEditorRoot(body);
   }
+  applyBlockLockState(block, body, definition);
   return block;
 }
 
@@ -1003,6 +1094,17 @@ function mergeContentPreservingUnchanged(originalHtml, editedHtml) {
 
   const merged = mergeBlocksByFingerprint(originalBlocks, editedBlocks);
   const mergedInner = joinMergedBlocksPreservingGaps(merged, originalBlocks);
+
+  // Keep any prefix that sits before the first block (for example the HTML
+  // comments at the top of profile fragments) — block extraction only tracks
+  // the blocks themselves, so it would otherwise be dropped.
+  const firstBlockStart = original.indexOf(originalBlocks[0].outerHtml);
+  const prefix = firstBlockStart > 0 ? original.slice(0, firstBlockStart) : '';
+  if (prefix.trim()) {
+    const trail = (original.match(/(\s+)$/) || ['', ''])[1];
+    return `${prefix}${mergedInner}${trail}`;
+  }
+
   return preserveContentRegionWhitespace(original, mergedInner);
 }
 
@@ -1067,7 +1169,7 @@ function formatPageTitle(sourcePath, extractedTitle) {
 
 class PageEditor extends HTMLElement {
   static get observedAttributes() {
-    return ['source', 'return', 'content-selector', 'title'];
+    return ['source', 'return', 'content-selector', 'title', 'block-library', 'canvas-class', 'asset-base', 'inline-includes', 'hide-mode-tabs'];
   }
 
   connectedCallback() {
@@ -1103,7 +1205,12 @@ class PageEditor extends HTMLElement {
     this.__contentSelector = this.getAttribute('content-selector')?.trim() || '.main-content';
     this.__beforeUnloadHandler = null;
     this.__navigationClickHandler = null;
+    this.__inlineToolbarRaf = null;
+    this.__includeSources = new Map();
+    this.__selectionChangeHandler = () => this.#onSelectionChange();
+    document.addEventListener('selectionchange', this.__selectionChangeHandler);
     this.#bindUi();
+    this.#syncModeTabsVisibility();
     this.#bindNavigationGuard();
     void this.#init();
   }
@@ -1117,10 +1224,21 @@ class PageEditor extends HTMLElement {
       document.removeEventListener('click', this.__navigationClickHandler, true);
       this.__navigationClickHandler = null;
     }
+    if (this.__selectionChangeHandler) {
+      document.removeEventListener('selectionchange', this.__selectionChangeHandler);
+      this.__selectionChangeHandler = null;
+    }
   }
 
-  attributeChangedCallback() {
-    if (this.__rendered) void this.#init();
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (!this.__rendered) return;
+    this.#syncModeTabsVisibility();
+    if (name === 'hide-mode-tabs' || oldValue === newValue) return;
+    void this.#init();
+  }
+
+  setMode(mode) {
+    return this.#setMode(mode);
   }
 
   #bindUi() {
@@ -1128,7 +1246,7 @@ class PageEditor extends HTMLElement {
     if (!root) return;
 
     root.addEventListener('mousedown', (event) => {
-      if (event.target.closest('.page-editor__format-toolbar button, .page-editor__block-gap-button')) {
+      if (event.target.closest('.page-editor__format-toolbar button, .page-editor__inline-toolbar button, .page-editor__block-gap-button')) {
         event.preventDefault();
       }
       if (event.target.closest('.page-editor__block-toolbar button:not(.page-editor__block-drag)')) {
@@ -1137,6 +1255,13 @@ class PageEditor extends HTMLElement {
     });
 
     root.addEventListener('click', (event) => {
+      // Close the floating block settings panel when clicking elsewhere.
+      if (this.#getOpenBlockSettings()
+        && !event.target.closest('.page-editor__block-settings-pop')
+        && !event.target.closest('[data-block-action="settings"]')) {
+        this.#closeBlockSettings();
+      }
+
       const slashChoice = event.target.closest('.page-editor__slash-item[data-block-id]');
       if (slashChoice) {
         event.preventDefault();
@@ -1166,7 +1291,10 @@ class PageEditor extends HTMLElement {
         return;
       }
 
-      const formatButton = event.target.closest('.page-editor__format-toolbar [data-cmd], .page-editor__format-toolbar [data-action]');
+      const formatButton = event.target.closest(
+        '.page-editor__format-toolbar [data-cmd], .page-editor__format-toolbar [data-action], '
+        + '.page-editor__inline-toolbar [data-cmd], .page-editor__inline-toolbar [data-action]',
+      );
       if (formatButton) {
         event.preventDefault();
         if (formatButton.dataset.action === 'open-inserter') {
@@ -1286,7 +1414,17 @@ class PageEditor extends HTMLElement {
 
       if (event.key === 'Escape') {
         this.#closeSlashMenu();
+        this.#closeBlockSettings();
         return;
+      }
+
+      if (body && event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const currentBlock = body.closest('.page-editor__block');
+        if (currentBlock && this.#shouldSplitOnEnter(currentBlock, body)) {
+          event.preventDefault();
+          this.#splitBlockAtCaret(currentBlock, body);
+          return;
+        }
       }
 
       const block = this.__selectedBlock || body?.closest('.page-editor__block');
@@ -1327,6 +1465,183 @@ class PageEditor extends HTMLElement {
       this.#scheduleHistorySnapshot();
       this.#updateDirtyState();
     });
+  }
+
+  #syncModeTabsVisibility() {
+    const toolbarRow = this.querySelector('.page-editor__toolbar-row');
+    if (toolbarRow) {
+      toolbarRow.hidden = this.hasAttribute('hide-mode-tabs');
+    }
+  }
+
+  #getActiveBlockLibrary() {
+    const names = (this.getAttribute('block-library') || '')
+      .split(/[\s,]+/)
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    const definitions = [...BLOCK_DEFINITIONS];
+    const categories = [...BLOCK_CATEGORIES];
+
+    for (const name of names) {
+      const library = BLOCK_LIBRARIES.get(name);
+      if (!library) continue;
+
+      library.categories.forEach((category) => {
+        if (!categories.some((existing) => existing.id === category.id)) {
+          categories.push(category);
+        }
+      });
+      library.blocks.forEach((block) => {
+        if (!definitions.some((existing) => existing.id === block.id)) {
+          definitions.push(block);
+        }
+      });
+    }
+
+    return { definitions, categories };
+  }
+
+  // Gutenberg-style Enter handling: pressing Enter in a text block starts a
+  // new block instead of growing the current one.
+  #shouldSplitOnEnter(block, body) {
+    if (body.getAttribute('contenteditable') === 'false') return false;
+
+    const typeId = block.dataset.blockType || detectBlockType(body.innerHTML);
+    if (!['paragraph', 'heading', 'quote'].includes(typeId)) return false;
+
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+    if (!body.contains(selection.anchorNode)) return false;
+
+    const anchorEl = selection.anchorNode.nodeType === Node.TEXT_NODE
+      ? selection.anchorNode.parentElement
+      : selection.anchorNode;
+    if (anchorEl?.closest('li, td, th, pre')) return false;
+
+    return true;
+  }
+
+  #splitBlockAtCaret(block, body) {
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const caret = selection.getRangeAt(0);
+    caret.deleteContents();
+
+    const tail = document.createRange();
+    tail.setStart(caret.endContainer, caret.endOffset);
+    tail.setEnd(body, body.childNodes.length);
+
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(tail.extractContents());
+
+    let nextHtml = '<p></p>';
+    if (wrapper.textContent?.trim() || wrapper.querySelector('img, hr, table')) {
+      const hasBlockChild = [...wrapper.children].some((child) => (
+        /^(p|h[1-6]|blockquote|ul|ol|div|figure|table)$/i.test(child.tagName)
+      ));
+      nextHtml = hasBlockChild ? wrapper.innerHTML : `<p>${wrapper.innerHTML}</p>`;
+    }
+
+    // Drop empty elements the extraction may have left at the end of the
+    // current block, but never empty the block out completely.
+    [...body.children].forEach((child) => {
+      if (body.children.length > 1 && !child.textContent.trim() && !child.querySelector('img, hr, table, br')) {
+        child.remove();
+      }
+    });
+    if (!body.innerHTML.trim()) {
+      body.innerHTML = '<p></p>';
+    }
+
+    const newBlock = createBlockElement(nextHtml);
+    block.after(newBlock);
+    this.#rebuildBlockGaps();
+    updateBlockChrome(block);
+    this.#selectBlock(newBlock);
+
+    const newBody = newBlock.querySelector('.page-editor__block-body');
+    if (newBody) {
+      newBody.focus();
+      const range = document.createRange();
+      range.selectNodeContents(newBody.firstElementChild || newBody);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    this.#pushHistorySnapshot({ immediate: true });
+    this.#updateDirtyState();
+    this.#scheduleLiveSync();
+  }
+
+  #onSelectionChange() {
+    if (this.__inlineToolbarRaf) return;
+    this.__inlineToolbarRaf = requestAnimationFrame(() => {
+      this.__inlineToolbarRaf = null;
+      this.#updateInlineToolbar();
+    });
+  }
+
+  #updateInlineToolbar() {
+    const toolbar = this.querySelector('.page-editor__inline-toolbar');
+    if (!toolbar) return;
+
+    const hide = () => {
+      toolbar.hidden = true;
+    };
+
+    if (this.__activeMode !== 'page') {
+      hide();
+      return;
+    }
+
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      hide();
+      return;
+    }
+
+    const anchorEl = selection.anchorNode?.nodeType === Node.TEXT_NODE
+      ? selection.anchorNode.parentElement
+      : selection.anchorNode;
+    const body = anchorEl?.closest?.('.page-editor__block-body');
+    if (!body || !this.contains(body) || body.getAttribute('contenteditable') === 'false') {
+      hide();
+      return;
+    }
+
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
+      hide();
+      return;
+    }
+
+    toolbar.hidden = false;
+    const toolbarRect = toolbar.getBoundingClientRect();
+    let top = rect.top - toolbarRect.height - 8;
+    if (top < 8) {
+      top = rect.bottom + 8;
+    }
+    let left = rect.left + rect.width / 2 - toolbarRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - toolbarRect.width - 8));
+    toolbar.style.top = `${Math.round(top)}px`;
+    toolbar.style.left = `${Math.round(left)}px`;
+  }
+
+  #updateCounts() {
+    const counts = this.querySelector('.page-editor__counts');
+    if (!counts) return;
+
+    const blocksRoot = this.#els().blocksRoot();
+    const blockCount = blocksRoot
+      ? blocksRoot.querySelectorAll(':scope > .page-editor__block').length
+      : 0;
+    const text = (this.#els().pageContent?.textContent || '').trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    counts.textContent = `${blockCount} block${blockCount === 1 ? '' : 's'} · ${words} word${words === 1 ? '' : 's'}`;
+    counts.hidden = blockCount === 0;
   }
 
   #captureHistoryState() {
@@ -1545,9 +1860,6 @@ class PageEditor extends HTMLElement {
       inserterBody: this.querySelector('.page-editor__inserter-body'),
       inserterSearch: this.querySelector('.page-editor__inserter-search'),
       slashMenu: this.querySelector('.page-editor__slash-menu'),
-      blockSidebar: this.querySelector('.page-editor__block-sidebar'),
-      blockSidebarBody: this.querySelector('.page-editor__block-sidebar-body'),
-      blockSidebarType: this.querySelector('.page-editor__block-sidebar-type'),
       blocksRoot: () => this.querySelector('.page-editor__blocks'),
     };
   }
@@ -1626,14 +1938,21 @@ class PageEditor extends HTMLElement {
       if (this.__fragmentMode && !isFragmentContentSelector(this.__contentSelector)) {
         this.__contentSelector = FRAGMENT_CONTENT_SELECTOR;
       }
-      this.__originalContentHtml = extracted.content;
+
+      this.__includeSources = new Map();
+      let initialContent = extracted.content;
+      if (this.hasAttribute('inline-includes')) {
+        initialContent = await this.#inlineIncludes(initialContent);
+      }
+
+      this.__originalContentHtml = initialContent;
       this.__mainClassName = extracted.mainClassName || 'main-content';
       this.__pageTitle = titleOverride || formatPageTitle(sourcePath, extracted.title);
       if (titleInput) titleInput.value = this.__pageTitle;
       document.title = `Edit ${this.__pageTitle}`;
 
       this.#renderInserterPanel('');
-      this.#populateLiveEditor(extracted.content || '<p></p>');
+      this.#populateLiveEditor(initialContent || '<p></p>');
       this.#setSavedBaseline();
       this.#setStatus('Type / to insert blocks, drag to reorder, and use the sidebar for block settings. Ctrl+Z to undo. Switch to HTML for full control.');
     } catch (error) {
@@ -1646,11 +1965,80 @@ class PageEditor extends HTMLElement {
     }
   }
 
+  // Replaces <include src="…"> elements with editable wrappers containing the
+  // fragment's content, so included files (e.g. the profile infobox) can be
+  // edited inline. The originals are kept for the multi-file publish step.
+  async #inlineIncludes(content) {
+    const doc = new DOMParser().parseFromString(`<div data-root>${content}</div>`, 'text/html');
+    const root = doc.querySelector('[data-root]');
+    if (!root) {
+      return content;
+    }
+
+    const includeEls = [...root.querySelectorAll('include[src], [data-include]')];
+    if (!includeEls.length) {
+      return content;
+    }
+
+    const sourceDir = this.__sourcePath.split('/').slice(0, -1).join('/');
+
+    for (const el of includeEls) {
+      const src = (el.getAttribute('src') || el.dataset.include || '').trim();
+      if (!src || /^https?:/i.test(src) || src.startsWith('/') || src.includes('..')) {
+        continue;
+      }
+
+      const repoPath = `${sourceDir}/${src.replace(/^\.\//, '')}`;
+      try {
+        const response = await fetch(resolveSourcePageUrl(repoPath), { cache: 'no-store' });
+        if (!response.ok) {
+          continue;
+        }
+
+        const text = await response.text();
+        this.__includeSources.set(src, { path: repoPath, original: text });
+
+        const wrapper = doc.createElement('div');
+        wrapper.setAttribute('data-editor-include', src);
+        wrapper.innerHTML = text;
+        el.replaceWith(wrapper);
+      } catch (error) {
+        console.warn('Could not inline include', src, error);
+      }
+    }
+
+    return root.innerHTML;
+  }
+
+  // Resolves relative asset URLs (e.g. images/…) against asset-base for the
+  // editor preview; the original values are restored when publishing.
+  #resolveCanvasAssets(root) {
+    const assetBase = this.getAttribute('asset-base')?.trim();
+    if (!assetBase || !root) return;
+
+    root.querySelectorAll('img[src]').forEach((img) => {
+      if (img.hasAttribute('data-editor-src')) return;
+      const src = img.getAttribute('src') || '';
+      if (!src || /^(https?:|data:|blob:)/i.test(src)) return;
+
+      try {
+        const resolved = new URL(src, new URL(`${assetBase.replace(/\/+$/, '')}/`, window.location.href)).href;
+        img.setAttribute('data-editor-src', src);
+        img.setAttribute('src', resolved);
+      } catch (error) {
+        // leave the original src in place
+      }
+    });
+  }
+
   #populateLiveEditor(html) {
     const { pageContent } = this.#els();
     if (!pageContent) return;
 
-    pageContent.className = `${this.__mainClassName} page-editor__page-content`;
+    const canvasClass = this.getAttribute('canvas-class')?.trim() || '';
+    pageContent.className = [this.__mainClassName, canvasClass, 'page-editor__page-content']
+      .filter(Boolean)
+      .join(' ');
     pageContent.replaceChildren();
 
     const blocksRoot = document.createElement('div');
@@ -1669,6 +2057,8 @@ class PageEditor extends HTMLElement {
     this.#rebuildBlockGaps();
     this.#bindBlocksCanvas(pageContent);
     applyBrandingToNode(pageContent);
+    this.#resolveCanvasAssets(pageContent);
+    this.#updateCounts();
   }
 
   #rebuildBlockGaps() {
@@ -1809,15 +2199,17 @@ class PageEditor extends HTMLElement {
     const { inserterBody } = this.#els();
     if (!inserterBody) return;
 
+    const { definitions, categories } = this.#getActiveBlockLibrary();
     const needle = String(query || '').trim().toLowerCase();
-    const matches = BLOCK_DEFINITIONS.filter((block) => {
+    const matches = definitions.filter((block) => {
+      if (block.hidden) return false;
       if (!needle) return true;
       return block.label.toLowerCase().includes(needle)
         || block.id.toLowerCase().includes(needle)
         || block.category.toLowerCase().includes(needle);
     });
 
-    const grouped = BLOCK_CATEGORIES.map((category) => ({
+    const grouped = categories.map((category) => ({
       ...category,
       blocks: matches.filter((block) => block.category === category.id),
     })).filter((category) => category.blocks.length > 0);
@@ -1882,6 +2274,7 @@ class PageEditor extends HTMLElement {
     }
 
     applyBrandingToNode(newBlock);
+    this.#resolveCanvasAssets(newBlock);
     this.#rebuildBlockGaps();
     this.#closeInserter();
     this.#selectBlock(newBlock);
@@ -1939,7 +2332,9 @@ class PageEditor extends HTMLElement {
 
   #getSlashMenuMatches() {
     const needle = String(this.__slashFilter || '').trim().toLowerCase();
-    return BLOCK_DEFINITIONS.filter((block) => {
+    const { definitions } = this.#getActiveBlockLibrary();
+    return definitions.filter((block) => {
+      if (block.hidden) return false;
       if (!needle) return true;
       return block.label.toLowerCase().includes(needle)
         || block.id.toLowerCase().includes(needle)
@@ -2008,6 +2403,7 @@ class PageEditor extends HTMLElement {
     const newBlock = createBlockElement(body?.innerHTML || '<p></p>');
     block.after(newBlock);
     applyBrandingToNode(newBlock);
+    this.#resolveCanvasAssets(newBlock);
     this.#rebuildBlockGaps();
     this.#selectBlock(newBlock);
     this.#pushHistorySnapshot({ immediate: true });
@@ -2035,21 +2431,58 @@ class PageEditor extends HTMLElement {
     this.#scheduleLiveSync();
   }
 
-  #renderBlockSidebar(block) {
-    const { blockSidebar, blockSidebarBody, blockSidebarType } = this.#els();
-    if (!blockSidebar || !blockSidebarBody) return;
+  #getOpenBlockSettings() {
+    return this.querySelector('.page-editor__block-settings-pop');
+  }
 
-    if (!block || this.__activeMode !== 'page') {
-      blockSidebar.hidden = true;
+  #closeBlockSettings() {
+    this.#getOpenBlockSettings()?.remove();
+  }
+
+  #toggleBlockSettings(block) {
+    if (!block) return;
+    const existing = this.#getOpenBlockSettings();
+    const wasOpenForBlock = existing?.closest('.page-editor__block') === block;
+    this.#closeBlockSettings();
+    if (wasOpenForBlock) return;
+
+    this.#selectBlock(block);
+    const definition = getBlockDefinition(block.dataset.blockType || 'paragraph');
+    const pop = document.createElement('div');
+    pop.className = 'page-editor__block-sidebar page-editor__block-settings-pop';
+    pop.setAttribute('contenteditable', 'false');
+    pop.innerHTML = `
+      <header class="page-editor__block-sidebar-header">
+        <h3 class="page-editor__block-sidebar-title">Block settings</h3>
+        <p class="page-editor__block-sidebar-type">${escapeHtml(definition.description || definition.label)}</p>
+      </header>
+      <div class="page-editor__block-sidebar-body">${this.#buildBlockSettingsHtml(block)}</div>
+    `;
+    block.appendChild(pop);
+  }
+
+  // Refresh (or close) the floating settings panel when the selection or
+  // block type changes. Replaces the old fixed right-hand sidebar.
+  #renderBlockSidebar(block) {
+    const pop = this.#getOpenBlockSettings();
+    if (!pop) return;
+
+    const owner = pop.closest('.page-editor__block');
+    if (!block || owner !== block || this.__activeMode !== 'page') {
+      this.#closeBlockSettings();
       return;
     }
 
+    const definition = getBlockDefinition(block.dataset.blockType || 'paragraph');
+    const typeEl = pop.querySelector('.page-editor__block-sidebar-type');
+    if (typeEl) typeEl.textContent = definition.description || definition.label;
+    const bodyEl = pop.querySelector('.page-editor__block-sidebar-body');
+    if (bodyEl) bodyEl.innerHTML = this.#buildBlockSettingsHtml(block);
+  }
+
+  #buildBlockSettingsHtml(block) {
     const typeId = block.dataset.blockType || 'paragraph';
     const definition = getBlockDefinition(typeId);
-    blockSidebar.hidden = false;
-    if (blockSidebarType) {
-      blockSidebarType.textContent = definition.description || definition.label;
-    }
 
     const transforms = (definition.transforms || [])
       .map((id) => BLOCK_DEFINITION_BY_ID[id])
@@ -2123,7 +2556,7 @@ class PageEditor extends HTMLElement {
       <p class="page-editor__sidebar-hint"><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>/</kbd> in empty block to insert</p>
     `;
 
-    blockSidebarBody.innerHTML = fields;
+    return fields;
   }
 
   #handleSidebarAction(control) {
@@ -2180,6 +2613,11 @@ class PageEditor extends HTMLElement {
     if (!blocksRoot) return;
 
     if (action === 'drag') return;
+
+    if (action === 'settings') {
+      this.#toggleBlockSettings(block);
+      return;
+    }
 
     if (action === 'insert-at-gap') {
       const gap = control?.closest('.page-editor__block-gap');
@@ -2286,6 +2724,24 @@ class PageEditor extends HTMLElement {
       return;
     }
 
+    if (action === 'inline-code') {
+      const selection = document.getSelection();
+      const text = selection?.toString() || '';
+      if (!text) return;
+
+      const anchorEl = selection.anchorNode?.nodeType === Node.TEXT_NODE
+        ? selection.anchorNode.parentElement
+        : selection.anchorNode;
+      if (anchorEl?.closest('code')) {
+        document.execCommand('removeFormat');
+      } else {
+        document.execCommand('insertHTML', false, `<code>${escapeHtml(text)}</code>`);
+      }
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+      return;
+    }
+
     const cmd = button.dataset.cmd;
     if (!cmd) return;
 
@@ -2326,6 +2782,7 @@ class PageEditor extends HTMLElement {
     this.__liveSyncTimer = setTimeout(() => {
       this.__liveSyncTimer = null;
       this.#syncLiveToSource();
+      this.#updateCounts();
     }, 200);
   }
 
@@ -2416,6 +2873,63 @@ class PageEditor extends HTMLElement {
     );
   }
 
+  // Builds the list of files to publish. Inline-edited includes are split
+  // back into their own files and the <include> elements are restored in the
+  // main document, so one PR can carry e.g. profile.html + profile-table.html.
+  #buildPublishFiles() {
+    if (!this.__originalHtml) {
+      throw new Error('The original page has not finished loading yet.');
+    }
+
+    const titleChanged = this.#getPageTitle() !== this.__savedPageTitle;
+    const contentHtml = this.#getSourceHtml();
+    const files = [];
+    let mainContent = contentHtml;
+
+    if (contentHtml.includes('data-editor-include')) {
+      const doc = new DOMParser().parseFromString(`<div data-root>${contentHtml}</div>`, 'text/html');
+      const root = doc.querySelector('[data-root]');
+      const sourceDir = this.__sourcePath.split('/').slice(0, -1).join('/');
+
+      root?.querySelectorAll('[data-editor-include]').forEach((wrapper) => {
+        const src = (wrapper.getAttribute('data-editor-include') || '').trim();
+        if (!src) {
+          wrapper.remove();
+          return;
+        }
+
+        let meta = this.__includeSources.get(src);
+        if (!meta) {
+          meta = { path: `${sourceDir}/${src.replace(/^\.\//, '')}`, original: '' };
+          this.__includeSources.set(src, meta);
+        }
+
+        const merged = mergeContentPreservingUnchanged(meta.original, wrapper.innerHTML.trim());
+        if (merged.trim() && merged !== meta.original) {
+          files.push({ path: meta.path, content: merged });
+        }
+
+        const includeEl = doc.createElement('include');
+        includeEl.setAttribute('src', src);
+        wrapper.replaceWith(includeEl);
+      });
+
+      if (root) {
+        mainContent = root.innerHTML;
+      }
+    }
+
+    const fullHtml = replacePageContent(
+      this.__originalHtml,
+      this.__contentSelector,
+      mainContent,
+      titleChanged ? this.#getPageTitle() : null,
+    );
+
+    files.unshift({ path: this.__sourcePath, content: fullHtml });
+    return files;
+  }
+
   async #setMode(mode) {
     const nextMode = mode === 'source' ? 'source' : 'page';
     const { pagePanel, sourcePanel, modeTabs } = this.#els();
@@ -2450,6 +2964,8 @@ class PageEditor extends HTMLElement {
     if (nextMode === 'source') {
       this.#closeSlashMenu();
       this.#renderBlockSidebar(null);
+      const inlineToolbar = this.querySelector('.page-editor__inline-toolbar');
+      if (inlineToolbar) inlineToolbar.hidden = true;
       requestAnimationFrame(() => this.__codeMirror?.refresh());
     } else if (nextMode === 'page') {
       if (this.__selectedBlock) this.#renderBlockSidebar(this.__selectedBlock);
@@ -2517,23 +3033,47 @@ class PageEditor extends HTMLElement {
     this.#setStatus('Creating branch, commit, and pull request…');
 
     try {
-      const fullHtml = this.#buildFullPageHtml();
+      const publishFiles = this.#buildPublishFiles();
+      const fullHtml = publishFiles[0].content;
       const commitMessage = String(publishForm.elements.namedItem('commit_message')?.value || '').trim();
       const prTitle = String(publishForm.elements.namedItem('pr_title')?.value || '').trim();
       const prBody = String(publishForm.elements.namedItem('pr_body')?.value || '').trim();
+
+      const requestBody = {
+        path: this.__sourcePath,
+        content: fullHtml,
+        commit_message: commitMessage,
+        pr_title: prTitle,
+        pr_body: prBody,
+      };
+      if (publishFiles.length > 1) {
+        requestBody.files = publishFiles;
+      }
+
+      // Collect extra publish files from external providers (e.g. infobox
+      // editors). Providers should be functions pushed into
+      // `window.__extraPublishFileProviders` and return an array of
+      // { path, content } objects or [] when nothing to publish.
+      if (Array.isArray(window.__extraPublishFileProviders) && window.__extraPublishFileProviders.length) {
+        try {
+          const extrasArrays = await Promise.all(window.__extraPublishFileProviders.map((fn) => {
+            try { return fn(); } catch (e) { console.warn('extra publish provider threw', e); return []; }
+          }));
+          const extras = extrasArrays.flat().filter(Boolean).map((f) => ({ path: String(f.path || ''), content: String(f.content || '') })).filter((f) => f.path && f.content);
+          if (extras.length) {
+            requestBody.files = (requestBody.files || []).concat(extras);
+          }
+        } catch (err) {
+          console.warn('Error collecting extra publish files', err);
+        }
+      }
 
       const response = await fetch(submitUrl, window.App?.getGitHubFetchInit?.({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          path: this.__sourcePath,
-          content: fullHtml,
-          commit_message: commitMessage,
-          pr_title: prTitle,
-          pr_body: prBody,
-        }),
+        body: JSON.stringify(requestBody),
       }) || {
         method: 'POST',
         credentials: 'include',
@@ -2541,13 +3081,7 @@ class PageEditor extends HTMLElement {
           Accept: 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          path: this.__sourcePath,
-          content: fullHtml,
-          commit_message: commitMessage,
-          pr_title: prTitle,
-          pr_body: prBody,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       let payload = null;
@@ -2568,9 +3102,22 @@ class PageEditor extends HTMLElement {
       }
 
       this.__originalHtml = fullHtml;
-      const publishedRegion = findContentRegion(fullHtml, this.__contentSelector);
-      if (publishedRegion) {
-        this.__originalContentHtml = publishedRegion.inner;
+      publishFiles.slice(1).forEach((file) => {
+        for (const meta of this.__includeSources.values()) {
+          if (meta.path === file.path) {
+            meta.original = file.content;
+          }
+        }
+      });
+
+      if (publishFiles.length > 1) {
+        // Inline-include mode: the editor baseline is the inlined content.
+        this.__originalContentHtml = this.#getSourceHtml();
+      } else {
+        const publishedRegion = findContentRegion(fullHtml, this.__contentSelector);
+        if (publishedRegion) {
+          this.__originalContentHtml = publishedRegion.inner;
+        }
       }
       this.#setSavedBaseline();
       this.#closePublishDialog();
@@ -2626,6 +3173,8 @@ function resolveEditorPageUrl(sourcePath, returnPath, options = {}) {
 }
 
 window.AppPageEditor = {
+  PageEditorElement: PageEditor,
+  registerBlockLibrary,
   resolveSourcePageUrl,
   resolveEditorPageUrl,
   resolvePageEditUrl: resolveEditorPageUrl,

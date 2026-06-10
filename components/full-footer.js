@@ -343,7 +343,7 @@ body:not(.theme-dark) .page-footer__brand mini-header .localized-slogan {
           <action-button href="#" icon="bi-tiktok" aria-label="TikTok" title="TikTok"></action-button>
         </li>
         <li>
-          <action-button href="#" icon="bi-twitter-x" aria-label="X" title="X"></action-button>
+          <action-button href="https://x.com/Genepedia_org" target="_blank" rel="noopener noreferrer" icon="bi-twitter-x" aria-label="X" title="X"></action-button>
         </li>
         <li>
           <action-button href="https://github.com/Genepedia" target="_blank" rel="noopener noreferrer" icon="bi-github" aria-label="GitHub" title="GitHub"></action-button>
@@ -495,20 +495,25 @@ function formatRelativeEditDate(value) {
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
 
+  const time = date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   if (diffDays > 30) {
     return `on ${date.toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-    })}`;
+    })} at ${time}`;
   }
 
   if (diffDays > 1) {
-    return `${diffDays} days ago`;
+    return `${diffDays} days ago at ${time}`;
   }
 
   if (diffDays === 1) {
-    return 'yesterday';
+    return `yesterday at ${time}`;
   }
 
   if (diffHours >= 1) {
@@ -762,6 +767,10 @@ class FullFooter extends HTMLElement {
       const author = String(commit.author || '').trim() || 'Unknown author';
 
       textEl.textContent = `Last edited ${when} by ${author}`;
+      const editedDate = commit.date ? new Date(commit.date) : null;
+      if (editedDate && !Number.isNaN(editedDate.getTime())) {
+        link.title = `Last edited ${editedDate.toLocaleString()} by ${author}`;
+      }
       link.href = resolveFooterLastEditedHref(commit, repo);
       link.hidden = false;
     } catch (error) {

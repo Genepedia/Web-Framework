@@ -1886,6 +1886,16 @@ class FullHeader extends HTMLElement {
         setTheme(button.dataset.theme);
       });
     });
+
+    // Allow clicking the empty space inside the theme switch area to toggle the switch.
+    const themeSwitchContainer = this.querySelector('.header-chrome__theme-switch');
+    if (themeSwitchContainer) {
+      themeSwitchContainer.addEventListener('click', (e) => {
+        // If the click was on an interactive child (button/label/input/link), let that handler run.
+        if (e.target.closest('button, label, input, a')) return;
+        themeInput.click();
+      });
+    }
   }
 
   #initSearch() {
