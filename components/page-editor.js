@@ -1245,6 +1245,7 @@ class PageEditor extends HTMLElement {
       document.removeEventListener('keydown', this.__leaveKeydownHandler);
       this.__leaveKeydownHandler = null;
     }
+    this.#restoreLeaveOverlay();
     if (this.__selectionChangeHandler) {
       document.removeEventListener('selectionchange', this.__selectionChangeHandler);
       this.__selectionChangeHandler = null;
@@ -1871,8 +1872,20 @@ class PageEditor extends HTMLElement {
     window.location.href = url;
   }
 
+  #getLeaveOverlay() {
+    if (this.__leaveOverlayRef) {
+      return this.__leaveOverlayRef;
+    }
+
+    const overlay = this.querySelector('.page-editor__leave-overlay');
+    if (overlay) {
+      this.__leaveOverlayRef = overlay;
+    }
+    return overlay;
+  }
+
   #mountLeaveOverlay() {
-    const { leaveOverlay } = this.#els();
+    const leaveOverlay = this.#getLeaveOverlay();
     if (!leaveOverlay) {
       return null;
     }
@@ -1886,7 +1899,7 @@ class PageEditor extends HTMLElement {
   }
 
   #restoreLeaveOverlay() {
-    const { leaveOverlay } = this.#els();
+    const leaveOverlay = this.#getLeaveOverlay();
     if (!leaveOverlay || !this.__leaveOverlayHome?.parent) {
       return;
     }
@@ -1896,7 +1909,7 @@ class PageEditor extends HTMLElement {
   }
 
   #closeLeavePrompt(confirmed) {
-    const { leaveOverlay } = this.#els();
+    const leaveOverlay = this.#getLeaveOverlay();
     if (leaveOverlay) {
       leaveOverlay.hidden = true;
     }
@@ -1978,7 +1991,7 @@ class PageEditor extends HTMLElement {
     };
     document.addEventListener('click', this.__navigationClickHandler, true);
 
-    const { leaveOverlay } = this.#els();
+    const leaveOverlay = this.#getLeaveOverlay();
     leaveOverlay?.addEventListener('click', (event) => {
       if (event.target === leaveOverlay) {
         event.preventDefault();
@@ -1999,7 +2012,7 @@ class PageEditor extends HTMLElement {
     });
 
     this.__leaveKeydownHandler = (event) => {
-      const { leaveOverlay: activeLeaveOverlay } = this.#els();
+      const activeLeaveOverlay = this.#getLeaveOverlay();
       if (event.key !== 'Escape' || !activeLeaveOverlay || activeLeaveOverlay.hidden) {
         return;
       }
@@ -2023,7 +2036,7 @@ class PageEditor extends HTMLElement {
       sourcePanel: this.querySelector('[data-panel="source"]'),
       modeTabs: [...this.querySelectorAll('.page-editor__mode-tab')],
       publishDialog: this.querySelector('.page-editor__publish-dialog'),
-      leaveOverlay: this.querySelector('.page-editor__leave-overlay'),
+      leaveOverlay: this.#getLeaveOverlay(),
       publishForm: this.querySelector('.page-editor__publish-form'),
       inserterDialog: this.querySelector('.page-editor__inserter'),
       inserterBody: this.querySelector('.page-editor__inserter-body'),
