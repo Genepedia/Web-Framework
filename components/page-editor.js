@@ -41,7 +41,7 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
         <p class="page-editor__unsaved-notice" hidden>Unsaved changes</p>
         <button type="button" class="page-editor__button page-editor__button--save" data-action="publish">
           <i class="bi bi-check2-circle" aria-hidden="true"></i>
-          <span>Save Changes</span>
+          <span>Save</span>
         </button>
       </div>
     </div>
@@ -137,30 +137,30 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
   <dialog class="page-editor__publish-dialog">
     <form method="dialog" class="page-editor__publish-form">
       <header class="page-editor__publish-header">
-        <h2 class="page-editor__publish-title">Save Changes</h2>
+        <h2 class="page-editor__publish-title">Save</h2>
         <button type="button" class="page-editor__icon-button" data-action="close-publish" aria-label="Close">
           <i class="bi bi-x-lg" aria-hidden="true"></i>
         </button>
       </header>
       <p class="page-editor__publish-intro">
-        Your edits will be committed to a new branch and opened as a GitHub pull request for review.
+        If you manage this page, your edits will be committed immediately. Otherwise, they will open a pull request for review.
       </p>
       <label class="page-editor__field">
         <span class="page-editor__field-label">Commit message</span>
         <input type="text" class="page-editor__field-input" name="commit_message" required>
       </label>
       <label class="page-editor__field">
-        <span class="page-editor__field-label">Pull request title</span>
+        <span class="page-editor__field-label">Review title</span>
         <input type="text" class="page-editor__field-input" name="pr_title" required>
       </label>
       <label class="page-editor__field">
-        <span class="page-editor__field-label">Pull request description</span>
+        <span class="page-editor__field-label">Review description</span>
         <textarea class="page-editor__field-textarea" name="pr_body" rows="5"></textarea>
       </label>
       <footer class="page-editor__publish-footer">
         <button type="button" class="page-editor__button" data-action="close-publish">Cancel</button>
         <button type="submit" class="page-editor__button page-editor__button--save" data-action="submit-publish">
-          Submit changes
+          Save
         </button>
       </footer>
     </form>
@@ -3057,7 +3057,7 @@ class PageEditor extends HTMLElement {
 
   // Builds the list of files to publish. Inline-edited includes are split
   // back into their own files and the <include> elements are restored in the
-  // main document, so one PR can carry e.g. profile.html + profile-table.html.
+  // main document, so one save can carry e.g. profile.html + profile-table.html.
   #buildPublishFiles() {
     if (!this.__originalHtml) {
       throw new Error('The original page has not finished loading yet.');
@@ -3184,7 +3184,7 @@ class PageEditor extends HTMLElement {
     if (titleInput) titleInput.value = defaultMessage;
     if (bodyInput) {
       bodyInput.value = [
-        `This pull request updates \`${this.__sourcePath}\` using the site page editor.`,
+        `This update changes \`${this.__sourcePath}\` using the site page editor.`,
         '',
         `Edited by ${session.user?.displayName || session.user?.login || 'a contributor'}.`,
       ].join('\n');
@@ -3212,7 +3212,7 @@ class PageEditor extends HTMLElement {
 
     const submitButton = publishForm.querySelector('[data-action="submit-publish"]');
     if (submitButton) submitButton.disabled = true;
-    this.#setStatus('Creating branch, commit, and pull request…');
+    this.#setStatus('Saving changes…');
 
     try {
       const publishFiles = this.#buildPublishFiles();
@@ -3319,7 +3319,7 @@ class PageEditor extends HTMLElement {
           status.dataset.type = 'success';
         }
       } else {
-        this.#setStatus('Changes were published successfully.');
+        this.#setStatus('Changes were committed successfully.');
       }
     } catch (error) {
       console.error(error);

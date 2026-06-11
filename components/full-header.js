@@ -1210,7 +1210,7 @@ full-header.portal-index .header-chrome__tools {
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-house" aria-hidden="true"></i><span>Home</span></a>
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-search" aria-hidden="true"></i><span>Search</span></a>
     <a class="header-chrome__sidebar-link" href="#" data-action="random-profile"><i class="bi bi-shuffle" aria-hidden="true"></i><span>Random</span></a>
-    <a class="header-chrome__sidebar-link" href="#" data-action="new-tree"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>New tree</span></a>
+    <a class="header-chrome__sidebar-link" href="#" data-action="new-tree"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>New Tree</span></a>
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-question-circle" aria-hidden="true"></i><span>Help</span></a>
   </nav>
   <div class="header-chrome__sidebar-footer">
@@ -1584,6 +1584,31 @@ async function navigateToNewTree() {
   window.location.assign(resolveSiteUrl(`people/edit.html?person=${nextId}`));
 }
 
+async function navigateToOwnProfile(view, user) {
+  if (typeof window.App?.navigateToOwnProfile === 'function') {
+    await window.App.navigateToOwnProfile(view, user);
+    return;
+  }
+
+  try {
+    await ensurePeopleRegistryScript();
+  } catch (error) {
+    console.warn('Profile setup navigation failed: could not load people registry.', error);
+    return;
+  }
+
+  const people = await window.PeopleRegistry.loadPeopleRegistry();
+  const numericIds = people
+    .map((person) => Number.parseInt(String(person?.id || ''), 10))
+    .filter((id) => Number.isFinite(id));
+  const nextId = numericIds.length ? Math.max(...numericIds) + 1 : 1;
+  const setupUrl = new URL(resolveSiteUrl('people/edit.html'), window.location.href);
+  setupUrl.searchParams.set('person', String(nextId));
+  setupUrl.searchParams.set('self', '1');
+  setupUrl.searchParams.set('return', String(view || 'profile'));
+  window.location.assign(setupUrl.href);
+}
+
 class FullHeader extends HTMLElement {
   connectedCallback() {
     if (this.__rendered) return;
@@ -1615,8 +1640,6 @@ class FullHeader extends HTMLElement {
       const text = link.textContent.trim().toLowerCase();
       if (text.includes('settings')) {
         link.href = resolveFromComponent('../pages/settings.html');
-      } else if (text.includes('profile')) {
-        link.href = resolveFromComponent('../pages/settings.html?tab=account');
       }
     });
 
@@ -2063,9 +2086,18 @@ class FullHeader extends HTMLElement {
     const avatar = this.querySelector('.header-chrome__user-avatar');
     const givenNameEl = this.querySelector('.header-chrome__user-given');
     const familyNameEl = this.querySelector('.header-chrome__user-family');
-    const profileLink = Array.from(userDropdown?.querySelectorAll('a[role="menuitem"]') || [])
-      .find((link) => link.textContent.trim().toLowerCase().includes('view your profile'));
-    const defaultProfileHref = profileLink?.getAttribute('href') || '#';
+    const userMenuLinks = Array.from(userDropdown?.querySelectorAll('a[role="menuitem"]') || []);
+    const selfProfileLinks = {
+      profile: userMenuLinks.find((link) => link.textContent.trim().toLowerCase().includes('view your profile')) || null,
+      tree: userMenuLinks.find((link) => link.textContent.trim().toLowerCase().includes('view your tree')) || null,
+      edit: userMenuLinks.find((link) => link.textContent.trim().toLowerCase().includes('edit your profile')) || null,
+    };
+    const selfProfileDefaultHrefs = new Map(
+      Object.values(selfProfileLinks)
+        .filter(Boolean)
+        .map((link) => [link, link.getAttribute('href') || '#']),
+    );
+    let currentSessionUser = null;
 
     if (!auth || !loginButton || !userMenu || !userTrigger || !userDropdown) {
       return;
@@ -2128,11 +2160,13 @@ class FullHeader extends HTMLElement {
     const clearUser = () => {
       if (givenNameEl) givenNameEl.textContent = '';
       if (familyNameEl) familyNameEl.textContent = '';
-      if (profileLink) {
-        profileLink.href = defaultProfileHref;
-        profileLink.removeAttribute('target');
-        profileLink.removeAttribute('rel');
-      }
+      currentSessionUser = null;
+      selfProfileDefaultHrefs.forEach((href, link) => {
+        link.href = href;
+        link.removeAttribute('target');
+        link.removeAttribute('rel');
+        link.removeAttribute('aria-busy');
+      });
 
       setAvatar({
         givenName: '',
@@ -2158,27 +2192,81 @@ class FullHeader extends HTMLElement {
       userTrigger.setAttribute('aria-expanded', 'true');
     };
 
+    const updateSelfProfileLinks = async (user) => {
+      const sessionUser = normalizeHeaderUser(user || {});
+      currentSessionUser = sessionUser;
+
+      Object.entries(selfProfileLinks).forEach(([view, link]) => {
+        if (!link) return;
+        link.href = '#';
+        link.removeAttribute('target');
+        link.removeAttribute('rel');
+        link.setAttribute('aria-busy', 'true');
+        link.dataset.selfProfileView = view;
+      });
+
+      if (typeof window.App?.resolveOwnProfileUrl !== 'function') {
+        Object.values(selfProfileLinks).forEach((link) => {
+          if (link) link.removeAttribute('aria-busy');
+        });
+        return;
+      }
+
+      await Promise.all(Object.entries(selfProfileLinks).map(async ([view, link]) => {
+        if (!link) return;
+        try {
+          link.href = await window.App.resolveOwnProfileUrl(sessionUser, view);
+        } catch (error) {
+          link.href = '#';
+        } finally {
+          link.removeAttribute('aria-busy');
+        }
+      }));
+    };
+
     // expose controls so other header menus can close this when they open
     this._closeUserMenu = closeUserMenu;
     this._openUserMenu = openUserMenu;
 
-    const setLoggedIn = (loggedIn, user = null) => {
+    const resolveSessionAvatar = async (user) => {
       const sessionUser = normalizeHeaderUser(user || {});
+
+      if (typeof window.App?.resolveOwnProfilePhotoUrl !== 'function') {
+        return sessionUser;
+      }
+
+      try {
+        const profilePhotoUrl = await window.App.resolveOwnProfilePhotoUrl(sessionUser);
+        if (profilePhotoUrl) {
+          return {
+            ...sessionUser,
+            photoUrl: profilePhotoUrl,
+          };
+        }
+      } catch (error) {
+        console.warn('Could not resolve the Genepedia profile photo for the signed-in user.', error);
+      }
+
+      return sessionUser;
+    };
+
+    const presentLoggedInUser = async (user) => {
+      const sessionUser = await resolveSessionAvatar(user);
+      if (givenNameEl) givenNameEl.textContent = sessionUser.givenName || '';
+      if (familyNameEl) familyNameEl.textContent = sessionUser.familyName || '';
+      setAvatar(sessionUser);
+      writeSession(sessionUser);
+      void updateSelfProfileLinks(sessionUser);
+    };
+
+    const setLoggedIn = (loggedIn, user = null) => {
       const loggedInValue = loggedIn ? 'true' : 'false';
       auth.dataset.loggedIn = loggedInValue;
       this.dataset.loggedIn = loggedInValue;
       closeUserMenu();
 
       if (loggedIn) {
-        if (givenNameEl) givenNameEl.textContent = sessionUser.givenName || '';
-        if (familyNameEl) familyNameEl.textContent = sessionUser.familyName || '';
-        setAvatar(sessionUser);
-        if (profileLink && sessionUser.profileUrl) {
-          profileLink.href = sessionUser.profileUrl;
-          profileLink.target = '_blank';
-          profileLink.rel = 'noreferrer';
-        }
-        writeSession(sessionUser);
+        void presentLoggedInUser(user);
       } else {
         clearUser();
         writeSession(null);
@@ -2220,6 +2308,15 @@ class FullHeader extends HTMLElement {
       }
 
       setLoggedIn(false);
+    });
+
+    Object.entries(selfProfileLinks).forEach(([view, link]) => {
+      if (!link) return;
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        closeUserMenu();
+        void navigateToOwnProfile(view, currentSessionUser);
+      });
     });
 
     userDropdown.querySelectorAll('a[role="menuitem"]').forEach((item) => {

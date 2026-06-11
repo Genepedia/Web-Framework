@@ -651,34 +651,77 @@ class FullPageToolbar extends HTMLElement {
 						<a class="people-page__tab-link" href="#messages" data-tab="messages" role="tab" aria-selected="false">
 							<i class="bi bi-envelope" aria-hidden="true"></i>
 							<span>Messages</span>
+							<span class="people-page__tab-badge" aria-hidden="true"></span>
 						</a>
 					</li>
 					<li class="people-page__tab-item" role="presentation">
 						<a class="people-page__tab-link" href="#mentions" data-tab="mentions" role="tab" aria-selected="false">
 							<i class="bi bi-at" aria-hidden="true"></i>
 							<span>Mentions</span>
+							<span class="people-page__tab-badge" aria-hidden="true"></span>
 						</a>
 					</li>
 					<li class="people-page__tab-item" role="presentation">
 						<a class="people-page__tab-link" href="#matches" data-tab="matches" role="tab" aria-selected="false">
 							<i class="bi bi-people" aria-hidden="true"></i>
 							<span>Matches</span>
+							<span class="people-page__tab-badge" aria-hidden="true"></span>
 						</a>
 					</li>
 					<li class="people-page__tab-item" role="presentation">
-						<a class="people-page__tab-link" href="#edits" data-tab="edits" role="tab" aria-selected="false">
+						<a class="people-page__tab-link" href="#requests" data-tab="requests" role="tab" aria-selected="false">
 							<i class="bi bi-pencil-square" aria-hidden="true"></i>
-							<span>Edit Requests</span>
+							<span>Requests</span>
+							<span class="people-page__tab-badge" aria-hidden="true"></span>
 						</a>
 					</li>
 				`;
 				tabsList.innerHTML = notifTabs;
 
+				// Inject badge style once
+				if (!this.__notifBadgeStyleInjected) {
+					this.__notifBadgeStyleInjected = true;
+					const style = document.createElement('style');
+					style.textContent = String.raw`
+					.people-page__tab-badge {
+						margin-left: 0.35rem;
+						background: rgba(51,102,204,0.14);
+						color: var(--page-toolbar-fg);
+						font-size: 0.75rem;
+						padding: 0.08rem 0.4rem;
+						border-radius: 999px;
+						min-width: 1.2rem;
+						display: inline-block;
+						text-align: center;
+					}
+					`;
+					document.head.appendChild(style);
+				}
+
+				// Update badge counts when notifications data is available
+				const updateCounts = (counts) => {
+					if (!counts) return;
+					[['messages','message'], ['mentions','mention'], ['matches','match'], ['requests','request']].forEach(([tab]) => {
+						const link = tabsList.querySelector(`.people-page__tab-link[data-tab="${tab}"]`);
+						const badge = link?.querySelector('.people-page__tab-badge');
+						if (badge) badge.textContent = counts[tab] || 0;
+					});
+				};
+
+				if (window.AppNotifications && typeof window.AppNotifications.getCounts === 'function') {
+					updateCounts(window.AppNotifications.getCounts());
+				} else {
+					document.addEventListener('app-notifications:loaded', (e) => {
+						updateCounts(e.detail?.counts || {});
+					});
+				}
+
 				// Select tab based on current hash (defaults to 'messages')
 				try {
 					const currentHash = (window.location.hash || '').replace(/^#/, '');
-					const allowed = ['messages', 'mentions', 'matches', 'edits'];
-					const selectedTab = allowed.includes(currentHash) ? currentHash : 'messages';
+					const baseHash = currentHash.split('/')[0];
+					const allowed = ['messages', 'mentions', 'matches', 'requests'];
+					const selectedTab = allowed.includes(baseHash) ? baseHash : 'messages';
 					tabsList.querySelectorAll('.people-page__tab-link').forEach((link) => {
 						const isSelected = link.dataset.tab === selectedTab;
 						const tabItem = link.closest('.people-page__tab-item');
