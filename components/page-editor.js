@@ -62,38 +62,7 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
 
   <div class="page-editor__workspace">
     <div class="page-editor__panel page-editor__panel--page is-active" data-panel="page">
-      <div class="page-editor__format-toolbar" role="toolbar" aria-label="Formatting">
-        <button type="button" class="page-editor__format-button page-editor__format-button--primary" data-action="open-inserter" title="Add block">
-          <i class="bi bi-plus-lg" aria-hidden="true"></i>
-          <span>Add block</span>
-        </button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
-        <button type="button" class="page-editor__format-button" data-action="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
-          <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
-        </button>
-        <button type="button" class="page-editor__format-button" data-action="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
-          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-        </button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
-        <button type="button" class="page-editor__format-button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="strikeThrough" title="Strikethrough"><i class="bi bi-type-strikethrough" aria-hidden="true"></i></button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
-        <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="h2" title="Heading 2">H2</button>
-        <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="h3" title="Heading 3">H3</button>
-        <button type="button" class="page-editor__format-button" data-cmd="formatBlock" data-value="p" title="Paragraph">¶</button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
-        <button type="button" class="page-editor__format-button" data-cmd="insertUnorderedList" title="Bullet list"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="insertOrderedList" title="Numbered list"><i class="bi bi-list-ol" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-action="insert-link" title="Link"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
-        <button type="button" class="page-editor__format-button" data-cmd="justifyLeft" title="Align left"><i class="bi bi-text-left" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="justifyCenter" title="Align centre"><i class="bi bi-text-center" aria-hidden="true"></i></button>
-        <button type="button" class="page-editor__format-button" data-cmd="justifyRight" title="Align right"><i class="bi bi-text-right" aria-hidden="true"></i></button>
-        <span class="page-editor__format-separator" aria-hidden="true"></span>
-        <button type="button" class="page-editor__format-button" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser" aria-hidden="true"></i></button>
-      </div>
+      <profile-prose-toolbar add-block class="page-editor__format-toolbar"></profile-prose-toolbar>
       <div class="page-editor__layout">
         <div class="page-editor__page-frame">
           <div class="page-editor__page-content" aria-label="Editable page canvas"></div>
@@ -185,37 +154,11 @@ const PAGE_EDITOR_TEMPLATE = String.raw`
 </div>
 `;
 
-const BLOCK_CATEGORIES = [
-  { id: 'text', label: 'Text' },
-  { id: 'media', label: 'Media' },
-  { id: 'design', label: 'Design' },
-  { id: 'layout', label: 'Layout' },
-];
+function getBlockDefinition(typeId) {
+  return window.EditorBlocks?.getById(typeId) || window.EditorBlocks?.getById("paragraph");
+}
 
-const BLOCK_DEFINITIONS = [
-  { id: 'paragraph', category: 'text', label: 'Paragraph', icon: 'bi-text-paragraph', description: 'Plain text for body copy.', html: '<p>Start writing…</p>', transforms: ['heading', 'quote', 'list'] },
-  { id: 'heading', category: 'text', label: 'Heading', icon: 'bi-type-h2', description: 'Section heading (H2).', html: '<h2 class="home-page__section-title">Heading</h2>', transforms: ['paragraph'] },
-  { id: 'list', category: 'text', label: 'List', icon: 'bi-list-ul', description: 'Bulleted or numbered list.', html: '<ul><li>First item</li><li>Second item</li></ul>', transforms: ['paragraph'] },
-  { id: 'quote', category: 'text', label: 'Quote', icon: 'bi-quote', description: 'Highlighted quotation.', html: '<blockquote><p>A memorable quote.</p></blockquote>', transforms: ['paragraph'] },
-  { id: 'image', category: 'media', label: 'Image', icon: 'bi-image', description: 'Image with alt text.', html: '<p><img src="assets/Logo.png" alt="Describe this image"></p>', transforms: [] },
-  { id: 'button', category: 'design', label: 'Button', icon: 'bi-square', description: 'Single call-to-action button.', html: '<p><a class="pure-button" href="#">Button label</a></p>', transforms: ['buttons'] },
-  { id: 'buttons', category: 'design', label: 'Buttons', icon: 'bi-ui-checks-grid', description: 'Row of action buttons.', html: '<div class="home-page__actions"><a class="pure-button" href="#">Primary action</a><a class="pure-button" href="#">Secondary action</a></div>', transforms: ['button'] },
-  { id: 'chip', category: 'design', label: 'Chips', icon: 'bi-tags', description: 'Compact topic links.', html: '<div class="home-page__chips"><a class="site-chip" href="#">Topic</a><a class="site-chip" href="#">Another topic</a></div>', transforms: [] },
-  { id: 'divider', category: 'design', label: 'Divider', icon: 'bi-hr', description: 'Horizontal rule between sections.', html: '<hr>', transforms: [] },
-  { id: 'hero', category: 'layout', label: 'Hero', icon: 'bi-window', description: 'Large intro banner with title and CTA.', html: '<section class="card home-page__hero"><div class="home-page__hero-inner"><h1 class="home-page__hero-title">Welcome</h1><p class="home-page__hero-text">Introductory text for this page.</p><div class="home-page__actions"><a class="pure-button" href="#">Call to action</a></div></div></section>', transforms: ['section'] },
-  { id: 'section', category: 'layout', label: 'Section', icon: 'bi-bounding-box', description: 'Card section with title and text.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Section title</h2><p class="home-page__section-text">Section content goes here.</p></section>', transforms: ['hero', 'tiles'] },
-  { id: 'tiles', category: 'layout', label: 'Card grid', icon: 'bi-grid-3x3-gap', description: 'Grid of feature cards.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Featured</h2><div class="home-page__grid"><article class="card home-page__tile"><h3 class="home-page__tile-title">Card title</h3><p class="home-page__tile-text">Card text.</p></article><article class="card home-page__tile"><h3 class="home-page__tile-title">Card title</h3><p class="home-page__tile-text">Card text.</p></article></div></section>', transforms: ['section', 'columns'] },
-  { id: 'columns', category: 'layout', label: 'Columns', icon: 'bi-layout-three-columns', description: 'Two-column layout.', html: '<div class="home-page__grid"><article class="card home-page__tile"><p>Column 1</p></article><article class="card home-page__tile"><p>Column 2</p></article></div>', transforms: ['tiles'] },
-  { id: 'updates', category: 'layout', label: 'Updates list', icon: 'bi-clock-history', description: 'List of recent updates with links.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Latest Updates</h2><ul class="home-page__updates"><li><a href="#">First update</a></li><li><a href="#">Second update</a></li></ul></section>', transforms: ['section', 'list'] },
-  { id: 'newsletter', category: 'layout', label: 'Newsletter', icon: 'bi-envelope', description: 'Email signup section.', html: '<section class="card home-page__section"><h2 class="home-page__section-title">Newsletter</h2><p class="home-page__section-text">Get occasional updates.</p><form class="home-page__newsletter-form" onsubmit="event.preventDefault();"><input class="home-page__newsletter-input" type="email" name="email" placeholder="you@example.com" required><button class="pure-button" type="submit">Subscribe</button></form></section>', transforms: ['section'] },
-  { id: 'table', category: 'layout', label: 'Table', icon: 'bi-table', description: 'Data table with headers.', html: '<table class="site-table"><thead><tr><th scope="col">Header</th><th scope="col">Header</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>', transforms: [] },
-  { id: 'spacer', category: 'layout', label: 'Spacer', icon: 'bi-distribute-vertical', description: 'Vertical whitespace.', html: '<div style="height:1.5rem" aria-hidden="true"></div>', transforms: [] },
-  // Internal block types for <include> fragments; hidden from the inserter.
-  { id: 'include-fragment', category: 'layout', label: 'Included fragment', icon: 'bi-box-arrow-in-down', description: 'Content from an included fragment file. Edits are saved back to that file.', html: '<div data-editor-include=""></div>', transforms: [], hidden: true },
-  { id: 'include-locked', category: 'layout', label: 'Included fragment', icon: 'bi-file-earmark-code', description: 'A fragment included from another file. Edit that file to change it.', html: '<include src=""></include>', transforms: [], hidden: true, locked: true },
-];
-
-const FRAGMENT_CONTENT_SELECTOR = '__fragment__';
+const FRAGMENT_CONTENT_SELECTOR = "__fragment__";
 const HISTORY_DEBOUNCE_MS = 900;
 const HISTORY_MAX_ENTRIES = 60;
 
@@ -225,40 +168,6 @@ function createBlockUid() {
   blockUidCounter += 1;
   return `block-${Date.now()}-${blockUidCounter}`;
 }
-
-const BLOCK_DEFINITION_BY_ID = Object.fromEntries(BLOCK_DEFINITIONS.map((block) => [block.id, block]));
-
-/**
- * Optional named block libraries that sites can register (e.g. a "profile"
- * library with infobox/figure blocks). A <page-editor block-library="name">
- * instance offers those blocks in its inserter and slash menu in addition to
- * the base set. Libraries can also provide a detect(el, html) function so
- * existing markup is labelled with the right block type.
- */
-const BLOCK_LIBRARIES = new Map();
-
-function registerBlockLibrary(name, library) {
-  const key = String(name || '').trim();
-  if (!key || !library || typeof library !== 'object') return;
-
-  const blocks = Array.isArray(library.blocks) ? library.blocks.filter((block) => block?.id) : [];
-  const categories = Array.isArray(library.categories) ? library.categories.filter((category) => category?.id) : [];
-  const detect = typeof library.detect === 'function' ? library.detect : null;
-
-  BLOCK_LIBRARIES.set(key, { blocks, categories, detect });
-  blocks.forEach((block) => {
-    BLOCK_DEFINITION_BY_ID[block.id] = block;
-  });
-}
-
-// Adopt libraries queued by scripts that loaded before this one.
-(() => {
-  const queued = Array.isArray(window.PageEditorBlocks?.__queue) ? window.PageEditorBlocks.__queue : [];
-  window.PageEditorBlocks = { registerLibrary: registerBlockLibrary };
-  queued.forEach((entry) => {
-    if (Array.isArray(entry)) registerBlockLibrary(entry[0], entry[1]);
-  });
-})();
 
 let codeMirrorLoaderPromise = null;
 let beautifyLoaderPromise = null;
@@ -550,10 +459,10 @@ function detectBlockType(html) {
   const el = root?.firstElementChild;
   if (!el) return 'paragraph';
 
-  for (const library of BLOCK_LIBRARIES.values()) {
+  for (const library of window.EditorBlocks?.getLibraries?.() || []) {
     try {
       const id = library.detect?.(el, html);
-      if (id && BLOCK_DEFINITION_BY_ID[id]) return id;
+      if (id && window.EditorBlocks.getById(id)) return id;
     } catch (error) {
       // ignore detector failures and fall through to the base rules
     }
@@ -606,10 +515,6 @@ function applyBlockLockState(block, body, definition) {
   if (body) {
     body.setAttribute('contenteditable', locked ? 'false' : 'true');
   }
-}
-
-function getBlockDefinition(typeId) {
-  return BLOCK_DEFINITION_BY_ID[typeId] || BLOCK_DEFINITION_BY_ID.paragraph;
 }
 
 function restoreEditorAssetUrls(html) {
@@ -1227,6 +1132,7 @@ class PageEditor extends HTMLElement {
     this.__selectionChangeHandler = () => this.#onSelectionChange();
     document.addEventListener('selectionchange', this.__selectionChangeHandler);
     this.#bindUi();
+    this.#bindProseToolbar();
     this.#syncModeTabsVisibility();
     this.#bindNavigationGuard();
     void this.#init();
@@ -1282,12 +1188,32 @@ class PageEditor extends HTMLElement {
     this.#discardUnsavedEdits();
   }
 
+  #bindProseToolbar() {
+    const toolbar = this.querySelector('profile-prose-toolbar');
+    if (!toolbar) return;
+
+    this.__proseToolbar = toolbar;
+    toolbar.setAttribute('block-context', 'page');
+    toolbar.commandRootProvider = () => this.#getActiveBlockBody();
+    toolbar.getBlockCatalog = () => this.#getActiveBlockLibrary();
+    toolbar.addEventListener('ppe-block-selected', (event) => {
+      this.__inserterContext = { position: 'append' };
+      this.#insertBlockById(event.detail?.blockId);
+    });
+    toolbar.addEventListener('ppe-toolbar-change', () => {
+      if (this.__syncing) return;
+      this.#scheduleHistorySnapshot();
+      this.#updateDirtyState();
+      this.#scheduleLiveSync();
+    });
+  }
+
   #bindUi() {
     const root = this.querySelector('.page-editor');
     if (!root) return;
 
     root.addEventListener('mousedown', (event) => {
-      if (event.target.closest('.page-editor__format-toolbar button, .page-editor__inline-toolbar button, .page-editor__block-gap-button')) {
+      if (event.target.closest('profile-prose-toolbar .ppe__tool, profile-prose-toolbar .ppe__menu-toggle, .page-editor__inline-toolbar button, .page-editor__block-gap-button')) {
         event.preventDefault();
       }
       if (event.target.closest('.page-editor__block-toolbar button:not(.page-editor__block-drag)')) {
@@ -1333,23 +1259,10 @@ class PageEditor extends HTMLElement {
       }
 
       const formatButton = event.target.closest(
-        '.page-editor__format-toolbar [data-cmd], .page-editor__format-toolbar [data-action], '
-        + '.page-editor__inline-toolbar [data-cmd], .page-editor__inline-toolbar [data-action]',
+        '.page-editor__inline-toolbar [data-cmd], .page-editor__inline-toolbar [data-action]',
       );
       if (formatButton) {
         event.preventDefault();
-        if (formatButton.dataset.action === 'open-inserter') {
-          this.#openInserter({ position: 'append' });
-          return;
-        }
-        if (formatButton.dataset.action === 'undo') {
-          this.#undo();
-          return;
-        }
-        if (formatButton.dataset.action === 'redo') {
-          this.#redo();
-          return;
-        }
         this.#handleFormatAction(formatButton);
         return;
       }
@@ -1521,26 +1434,8 @@ class PageEditor extends HTMLElement {
       .map((name) => name.trim())
       .filter(Boolean);
 
-    const definitions = [...BLOCK_DEFINITIONS];
-    const categories = [...BLOCK_CATEGORIES];
-
-    for (const name of names) {
-      const library = BLOCK_LIBRARIES.get(name);
-      if (!library) continue;
-
-      library.categories.forEach((category) => {
-        if (!categories.some((existing) => existing.id === category.id)) {
-          categories.push(category);
-        }
-      });
-      library.blocks.forEach((block) => {
-        if (!definitions.some((existing) => existing.id === block.id)) {
-          definitions.push(block);
-        }
-      });
-    }
-
-    return { definitions, categories };
+    return window.EditorBlocks?.getCatalog('page', { libraryNames: names })
+      || { definitions: [], categories: [] };
   }
 
   // Gutenberg-style Enter handling: pressing Enter in a text block starts a
@@ -1622,6 +1517,10 @@ class PageEditor extends HTMLElement {
     this.__inlineToolbarRaf = requestAnimationFrame(() => {
       this.__inlineToolbarRaf = null;
       this.#updateInlineToolbar();
+      const body = this.#getActiveBlockBody();
+      if (body && this.contains(body)) {
+        this.__proseToolbar?.updateToolbarState();
+      }
     });
   }
 
@@ -2379,37 +2278,15 @@ class PageEditor extends HTMLElement {
 
   #renderInserterPanel(query = '') {
     const { inserterBody } = this.#els();
-    if (!inserterBody) return;
+    if (!inserterBody || !window.EditorBlockInserter) return;
 
     const { definitions, categories } = this.#getActiveBlockLibrary();
-    const needle = String(query || '').trim().toLowerCase();
-    const matches = definitions.filter((block) => {
-      if (block.hidden) return false;
-      if (!needle) return true;
-      return block.label.toLowerCase().includes(needle)
-        || block.id.toLowerCase().includes(needle)
-        || block.category.toLowerCase().includes(needle);
+    window.EditorBlockInserter.renderPanel(inserterBody, {
+      context: 'page',
+      definitions,
+      categories,
+      query,
     });
-
-    const grouped = categories.map((category) => ({
-      ...category,
-      blocks: matches.filter((block) => block.category === category.id),
-    })).filter((category) => category.blocks.length > 0);
-
-    inserterBody.innerHTML = grouped.map((category) => `
-      <section class="page-editor__inserter-section">
-        <h3 class="page-editor__inserter-section-title">${escapeHtml(category.label)}</h3>
-        <div class="page-editor__inserter-grid">
-          ${category.blocks.map((block) => `
-            <button type="button" class="page-editor__inserter-item" data-block-id="${escapeHtml(block.id)}" role="option">
-              <i class="bi ${escapeHtml(block.icon)}" aria-hidden="true"></i>
-              <span class="page-editor__inserter-item-label">${escapeHtml(block.label)}</span>
-              ${block.description ? `<span class="page-editor__inserter-item-desc">${escapeHtml(block.description)}</span>` : ''}
-            </button>
-          `).join('')}
-        </div>
-      </section>
-    `).join('') || '<p class="page-editor__inserter-empty">No blocks match your search.</p>';
   }
 
   #openInserter(context = {}) {
@@ -2438,7 +2315,7 @@ class PageEditor extends HTMLElement {
   }
 
   #insertBlockById(blockId) {
-    const definition = BLOCK_DEFINITION_BY_ID[blockId];
+    const definition = getBlockDefinition(blockId);
     if (!definition) return;
 
     const blocksRoot = this.#els().blocksRoot();
@@ -2594,7 +2471,7 @@ class PageEditor extends HTMLElement {
   }
 
   #transformBlock(block, typeId) {
-    const definition = BLOCK_DEFINITION_BY_ID[typeId];
+    const definition = getBlockDefinition(typeId);
     const body = block?.querySelector('.page-editor__block-body');
     if (!definition || !body) return;
 
@@ -2667,7 +2544,7 @@ class PageEditor extends HTMLElement {
     const definition = getBlockDefinition(typeId);
 
     const transforms = (definition.transforms || [])
-      .map((id) => BLOCK_DEFINITION_BY_ID[id])
+      .map((id) => getBlockDefinition(id))
       .filter(Boolean);
 
     const body = block.querySelector('.page-editor__block-body');
@@ -3356,7 +3233,7 @@ function resolveEditorPageUrl(sourcePath, returnPath, options = {}) {
 
 window.AppPageEditor = {
   PageEditorElement: PageEditor,
-  registerBlockLibrary,
+  registerBlockLibrary: (...args) => window.EditorBlocks?.registerLibrary?.(...args),
   resolveSourcePageUrl,
   resolveEditorPageUrl,
   resolvePageEditUrl: resolveEditorPageUrl,

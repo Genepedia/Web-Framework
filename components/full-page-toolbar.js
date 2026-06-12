@@ -534,14 +534,14 @@ class FullPageToolbar extends HTMLElement {
 		}
 	}
 
-		#onHashChange() {
-			// Update tab selection when location.hash changes for non-people pages
-			try {
-				this.#sync();
-			} catch (e) {
-				// non-fatal
-			}
+	#onHashChange() {
+		// Update tab selection when location.hash changes for non-people pages
+		try {
+			this.#sync();
+		} catch (e) {
+			// non-fatal
 		}
+	}
 
 	attributeChangedCallback() {
 		if (this.__rendered) {
@@ -701,7 +701,7 @@ class FullPageToolbar extends HTMLElement {
 				// Update badge counts when notifications data is available
 				const updateCounts = (counts) => {
 					if (!counts) return;
-					[['messages','message'], ['mentions','mention'], ['matches','match'], ['requests','request']].forEach(([tab]) => {
+					[['messages', 'message'], ['mentions', 'mention'], ['matches', 'match'], ['requests', 'request']].forEach(([tab]) => {
 						const link = tabsList.querySelector(`.people-page__tab-link[data-tab="${tab}"]`);
 						const badge = link?.querySelector('.people-page__tab-badge');
 						if (badge) badge.textContent = counts[tab] || 0;

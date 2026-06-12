@@ -1581,7 +1581,7 @@ async function navigateToNewTree() {
     .map((person) => Number.parseInt(String(person?.id || ''), 10))
     .filter((id) => Number.isFinite(id));
   const nextId = numericIds.length ? Math.max(...numericIds) + 1 : 1;
-  window.location.assign(resolveSiteUrl(`people/edit.html?person=${nextId}`));
+  window.location.assign(resolveSiteUrl(`people/edit.html?person=${nextId}&new=1`));
 }
 
 async function navigateToOwnProfile(view, user) {
