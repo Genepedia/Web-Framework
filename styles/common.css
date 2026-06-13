@@ -113,7 +113,7 @@ body>article>page-editor {
 .settings-page__hero {
   background: var(--background-color-base);
   border: 1px solid var(--border-color-subtle);
-  border-radius: 1rem;
+  border-radius: var(--border-radius-base);
   box-shadow: var(--box-shadow-small);
   box-sizing: border-box;
 }
@@ -371,7 +371,7 @@ body.theme-dark .site-chip:hover {
 
 .page-changes__pending-item {
   border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
-  border-radius: 8px;
+  border-radius: var(--border-radius-base);
   background: var(--color-surface, #fff);
   overflow: hidden;
 }
@@ -427,7 +427,7 @@ body.theme-dark .site-chip:hover {
   align-items: center;
   gap: 0.45rem;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--border-radius-base);
   padding: 0.55rem 0.9rem;
   font: inherit;
   cursor: pointer;
@@ -528,7 +528,7 @@ body.theme-dark .page-changes__pending-button--decline {
   justify-content: center;
   min-height: 2.15rem;
   border: var(--border-subtle);
-  border-radius: 6px;
+  border-radius: var(--border-radius-base);
   background: var(--background-color-base);
   color: var(--color-base);
   font: inherit;
@@ -1122,7 +1122,7 @@ img.page-changes__person-avatar {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-color-subtle);
-  border-radius: 0.75rem;
+  border-radius: var(--border-radius-base);
   background: var(--background-color-neutral-subtle);
   padding: 0.95rem 1rem;
   color: var(--color-base);
@@ -1147,7 +1147,7 @@ img.page-changes__person-avatar {
   padding: 1.75rem;
   background: var(--background-color-neutral-subtle);
   border: 1px solid var(--border-color-subtle);
-  border-radius: 1rem;
+  border-radius: var(--border-radius-base);
   box-shadow: var(--box-shadow-small);
 }
 

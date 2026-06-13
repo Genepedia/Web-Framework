@@ -1219,6 +1219,7 @@ full-header.portal-index .header-chrome__tools {
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-search" aria-hidden="true"></i><span>Search</span></a>
     <a class="header-chrome__sidebar-link" href="#" data-action="random-profile"><i class="bi bi-shuffle" aria-hidden="true"></i><span>Random</span></a>
     <a class="header-chrome__sidebar-link" href="#" data-action="new-tree"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>New Tree</span></a>
+    <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-file-earmark-richtext" aria-hidden="true"></i><span>GEDCOM</span></a>
     <a class="header-chrome__sidebar-link" href="#"><i class="bi bi-question-circle" aria-hidden="true"></i><span>Help</span></a>
   </nav>
   <div class="header-chrome__sidebar-footer">
@@ -1660,6 +1661,8 @@ class FullHeader extends HTMLElement {
         link.href = resolveFromComponent('../pages/search.html');
       } else if (text.includes('random')) {
         link.href = '#';
+      } else if (text.includes('gedcom')) {
+        link.href = resolveFromComponent('../pages/gedcom.html');
       } else if (text.includes('help')) {
         link.href = resolveFromComponent('../pages/contact.html');
       }
