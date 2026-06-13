@@ -478,7 +478,7 @@ function detectBlockType(html) {
   if (tag === 'section' && cls.includes('home-page__section')) {
     return el.querySelector('.home-page__grid') ? 'tiles' : 'section';
   }
-  if (cls.includes('home-page__grid')) return 'columns';
+  if (cls.includes('home-page__grid')) return el.children.length === 1 ? 'row' : 'columns';
   if (cls.includes('home-page__actions')) return 'buttons';
   if (cls.includes('home-page__chips')) return 'chip';
   if (tag === 'table' || el.querySelector('table')) return 'table';
