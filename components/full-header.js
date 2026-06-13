@@ -466,7 +466,15 @@ full-header.search-open .header-chrome__search-toggle-icon--close {
   display: none;
 }
 
+.header-chrome__auth[data-auth-ready="false"] .header-chrome__login {
+  display: none;
+}
+
 .header-chrome__auth[data-logged-in="false"] .header-chrome__user-menu {
+  display: none;
+}
+
+.header-chrome__user-menu.is-loading {
   display: none;
 }
 
@@ -1164,7 +1172,7 @@ full-header.portal-index .header-chrome__tools {
         </div>
       </div>
       <div class="header-chrome__end">
-        <div class="header-chrome__auth" data-logged-in="false">
+        <div class="header-chrome__auth" data-logged-in="false" data-auth-ready="false">
         <button class="header-chrome__login" type="button">Log In</button>
         <div class="header-chrome__user-menu">
           <button
@@ -2098,6 +2106,7 @@ class FullHeader extends HTMLElement {
         .map((link) => [link, link.getAttribute('href') || '#']),
     );
     let currentSessionUser = null;
+    let userMenuLoadGeneration = 0;
 
     if (!auth || !loginButton || !userMenu || !userTrigger || !userDropdown) {
       return;
@@ -2105,6 +2114,11 @@ class FullHeader extends HTMLElement {
 
     loginButton.setAttribute('aria-label', 'Log in with GitHub');
     loginButton.setAttribute('title', 'Log in with GitHub');
+    auth.dataset.authReady = 'false';
+
+    const markAuthReady = () => {
+      auth.dataset.authReady = 'true';
+    };
 
     const readSession = () => {
       try {
@@ -2134,17 +2148,11 @@ class FullHeader extends HTMLElement {
     };
 
     const setAvatar = (user) => {
-      if (!avatar) return;
+      if (!avatar) return Promise.resolve();
 
       const label = user.displayName || `${user.givenName || ''} ${user.familyName || ''}`.trim() || 'GitHub User';
 
-      if (user.photoUrl) {
-        const photo = document.createElement('img');
-        photo.src = user.photoUrl;
-        photo.alt = label;
-        avatar.className = 'header-chrome__user-avatar';
-        avatar.replaceChildren(photo);
-      } else {
+      const applyPlaceholderAvatar = () => {
         avatar.className = 'header-chrome__user-avatar header-chrome__user-avatar--placeholder';
         avatar.replaceChildren();
         const icon = document.createElement('i');
@@ -2152,9 +2160,32 @@ class FullHeader extends HTMLElement {
         icon.setAttribute('aria-hidden', 'true');
         avatar.appendChild(icon);
         avatar.setAttribute('aria-label', label);
+        userTrigger.setAttribute('aria-label', `${label}, account menu`);
+      };
+
+      if (!user.photoUrl) {
+        applyPlaceholderAvatar();
+        return Promise.resolve();
       }
 
-      userTrigger.setAttribute('aria-label', `${label}, account menu`);
+      return new Promise((resolve) => {
+        const photo = document.createElement('img');
+        photo.alt = label;
+
+        const finish = () => {
+          avatar.className = 'header-chrome__user-avatar';
+          avatar.replaceChildren(photo);
+          userTrigger.setAttribute('aria-label', `${label}, account menu`);
+          resolve();
+        };
+
+        photo.onload = finish;
+        photo.onerror = () => {
+          applyPlaceholderAvatar();
+          resolve();
+        };
+        photo.src = user.photoUrl;
+      });
     };
 
     const clearUser = () => {
@@ -2168,7 +2199,7 @@ class FullHeader extends HTMLElement {
         link.removeAttribute('aria-busy');
       });
 
-      setAvatar({
+      void setAvatar({
         givenName: '',
         familyName: '',
         displayName: 'Account',
@@ -2254,7 +2285,7 @@ class FullHeader extends HTMLElement {
       const sessionUser = await resolveSessionAvatar(user);
       if (givenNameEl) givenNameEl.textContent = sessionUser.givenName || '';
       if (familyNameEl) familyNameEl.textContent = sessionUser.familyName || '';
-      setAvatar(sessionUser);
+      await setAvatar(sessionUser);
       writeSession(sessionUser);
       void updateSelfProfileLinks(sessionUser);
     };
@@ -2266,8 +2297,16 @@ class FullHeader extends HTMLElement {
       closeUserMenu();
 
       if (loggedIn) {
-        void presentLoggedInUser(user);
+        const loadGeneration = ++userMenuLoadGeneration;
+        userMenu.classList.add('is-loading');
+        void presentLoggedInUser(user).finally(() => {
+          if (loadGeneration === userMenuLoadGeneration) {
+            userMenu.classList.remove('is-loading');
+          }
+        });
       } else {
+        userMenuLoadGeneration += 1;
+        userMenu.classList.remove('is-loading');
         clearUser();
         writeSession(null);
       }
@@ -2440,7 +2479,9 @@ class FullHeader extends HTMLElement {
       }
 
       await syncSession();
-    })();
+    })().finally(() => {
+      markAuthReady();
+    });
   }
 
   disconnectedCallback() {

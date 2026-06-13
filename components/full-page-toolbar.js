@@ -646,7 +646,8 @@ class FullPageToolbar extends HTMLElement {
 				this.#syncPageTabSelection(tabsList);
 			} else if (variant === 'notifications') {
 				// Notifications variant: messages, mentions, matches, edit requests
-				const notifTabs = String.raw`
+				if (!tabsList.querySelector('[data-tab="messages"]')) {
+					const notifTabs = String.raw`
 					<li class="people-page__tab-item" role="presentation">
 						<a class="people-page__tab-link" href="#messages" data-tab="messages" role="tab" aria-selected="false">
 							<i class="bi bi-envelope" aria-hidden="true"></i>
@@ -676,13 +677,13 @@ class FullPageToolbar extends HTMLElement {
 						</a>
 					</li>
 				`;
-				tabsList.innerHTML = notifTabs;
+					tabsList.innerHTML = notifTabs;
 
-				// Inject badge style once
-				if (!this.__notifBadgeStyleInjected) {
-					this.__notifBadgeStyleInjected = true;
-					const style = document.createElement('style');
-					style.textContent = String.raw`
+					// Inject badge style once
+					if (!this.__notifBadgeStyleInjected) {
+						this.__notifBadgeStyleInjected = true;
+						const style = document.createElement('style');
+						style.textContent = String.raw`
 					.people-page__tab-badge {
 						margin-left: 0.35rem;
 						background: rgba(51,102,204,0.14);
@@ -695,14 +696,17 @@ class FullPageToolbar extends HTMLElement {
 						text-align: center;
 					}
 					`;
-					document.head.appendChild(style);
+						document.head.appendChild(style);
+					}
 				}
+
+				const tabsListForCounts = this.querySelector('.people-page__tab-list');
 
 				// Update badge counts when notifications data is available
 				const updateCounts = (counts) => {
-					if (!counts) return;
+					if (!counts || !tabsListForCounts) return;
 					[['messages', 'message'], ['mentions', 'mention'], ['matches', 'match'], ['requests', 'request']].forEach(([tab]) => {
-						const link = tabsList.querySelector(`.people-page__tab-link[data-tab="${tab}"]`);
+						const link = tabsListForCounts.querySelector(`.people-page__tab-link[data-tab="${tab}"]`);
 						const badge = link?.querySelector('.people-page__tab-badge');
 						if (badge) badge.textContent = counts[tab] || 0;
 					});
@@ -722,7 +726,7 @@ class FullPageToolbar extends HTMLElement {
 					const baseHash = currentHash.split('/')[0];
 					const allowed = ['messages', 'mentions', 'matches', 'requests'];
 					const selectedTab = allowed.includes(baseHash) ? baseHash : 'messages';
-					tabsList.querySelectorAll('.people-page__tab-link').forEach((link) => {
+					tabsListForCounts?.querySelectorAll('.people-page__tab-link').forEach((link) => {
 						const isSelected = link.dataset.tab === selectedTab;
 						const tabItem = link.closest('.people-page__tab-item');
 						tabItem?.classList.toggle('is-selected', isSelected);
