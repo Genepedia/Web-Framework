@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Third-party logos — Icon Index</title>
+    <style>
+        :root {
+            --bg: #060606;
+            --panel: #0c0c0d;
+            --card-bg: #111214;
+            --card-border: rgba(255, 255, 255, .06);
+            --art-bg: #17181b;
+            --text: #f3f4f6;
+            --muted: #9aa0a6
+        }
+
+        html,
+        body {
+            height: 100%
+        }
+
+        body {
+            font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            margin: 0;
+            background: var(--bg);
+            color: var(--text)
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 28px auto;
+            padding: 20px
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 12px
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin: 10px 0 18px
+        }
+
+        .search {
+            flex: 1;
+            min-width: 180px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--card-border);
+            background: var(--panel);
+            color: var(--text)
+        }
+
+        .count {
+            font-size: 13px;
+            color: var(--muted)
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px
+        }
+
+        .card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            text-align: center;
+            min-height: 110px;
+            box-shadow: 0 10px 32px rgba(0, 0, 0, .22)
+        }
+
+        .art {
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            overflow: hidden;
+            background: radial-gradient(circle at top, rgba(255, 255, 255, .06), rgba(255, 255, 255, .02) 55%, transparent 100%), var(--art-bg)
+        }
+
+        .art img {
+            width: 64px;
+            height: 64px;
+            object-fit: contain
+        }
+
+        .slug {
+            font-size: 12px;
+            color: var(--text);
+            word-break: break-word
+        }
+
+        .sub {
+            font-size: 11px;
+            color: var(--muted)
+        }
+
+        .empty {
+            padding: 30px;
+            text-align: center;
+            color: var(--muted)
+        }
+
+        footer {
+            margin-top: 18px;
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        footer a {
+            color: #f59e0b
+        }
+
+        @media (max-width:480px) {
+            .art img {
+                width: 48px;
+                height: 48px
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>Third-party logo index</h1>
+        <div class="toolbar">
+            <input id="search" class="search" type="search" placeholder="Search icons by name or file (e.g. 'github')">
+            <div class="count" id="count">Loading…</div>
+        </div>
+
+        <div id="grid" class="grid" aria-live="polite"></div>
+        <div id="empty" class="empty" hidden>No icons match your search.</div>
+
+        <footer>
+            Icons are loaded from the remote <a href="https://www.jsdelivr.com/package/gh/glincker/thesvg"
+                target="_blank" rel="noreferrer">theSVG jsDelivr package</a>.
+        </footer>
+    </div>
+
+    <script src="../../third-party-icons.js" defer></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.documentElement.dataset.iconScheme = 'dark';
+            const searchEl = document.getElementById('search');
+            const grid = document.getElementById('grid');
+            const count = document.getElementById('count');
+            const empty = document.getElementById('empty');
+            let icons = [];
+
+            function createCard(meta) {
+                const card = document.createElement('div');
+                card.className = 'card';
+                const art = document.createElement('div');
+                art.className = 'art';
+
+                const img = document.createElement('img');
+                img.src = meta.url;
+                img.alt = meta.name || meta.slug;
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                art.appendChild(img);
+
+                const slug = document.createElement('div');
+                slug.className = 'slug';
+                slug.textContent = meta.slug;
+
+                const sub = document.createElement('div');
+                sub.className = 'sub';
+                sub.textContent = [meta.name || '', meta.variant ? `(${meta.variant})` : ''].filter(Boolean).join(' ');
+
+                card.appendChild(art);
+                card.appendChild(slug);
+                card.appendChild(sub);
+                return card;
+            }
+
+            function render(list) {
+                grid.innerHTML = '';
+                if (!list || list.length === 0) {
+                    empty.hidden = false;
+                    count.textContent = `0 / ${icons.length}`;
+                    return;
+                }
+                empty.hidden = true;
+                count.textContent = `${list.length} / ${icons.length}`;
+                const frag = document.createDocumentFragment();
+                list.forEach(meta => frag.appendChild(createCard(meta)));
+                grid.appendChild(frag);
+            }
+
+            function applyFilter() {
+                const q = searchEl.value.trim().toLowerCase();
+                if (!q) { render(icons); return; }
+                const filtered = icons.filter(i => (`${i.slug} ${i.name || ''}`).toLowerCase().includes(q));
+                render(filtered);
+            }
+
+            searchEl.addEventListener('input', () => applyFilter());
+
+            function loadIcons() {
+                if (window.AppThirdPartyIcons && typeof window.AppThirdPartyIcons.listIconsAsync === 'function') {
+                    return window.AppThirdPartyIcons.listIconsAsync();
+                }
+                return Promise.reject(new Error('Icon helper missing'));
+            }
+
+            (window.AppThirdPartyIcons && typeof window.AppThirdPartyIcons.whenReady === 'function'
+                ? window.AppThirdPartyIcons.whenReady().then(loadIcons)
+                : loadIcons()
+            ).then(list => {
+                icons = (list || []).sort((a, b) => (a.slug || '').localeCompare(b.slug || ''));
+                render(icons);
+            }).catch(err => {
+                console.error('Failed to load icons', err);
+                count.textContent = 'Error loading icons';
+                empty.hidden = false;
+                empty.textContent = 'Could not load icon metadata from theSVG.';
+            });
+        });
+    </script>
+</body>
+
+</html>

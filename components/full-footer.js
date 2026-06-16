@@ -386,15 +386,12 @@ const FULL_FOOTER_ACTION_BUTTON_SCRIPT_URL = resolveFromComponent('action-button
 
 const FOOTER_PEOPLE_PROFILE_FILES = [
   'profile.html',
-  'data/profile.html',
-  'data/profile-table.html',
-  'data/media.html',
-  'data/tree.html',
+  'images',
 ];
 
 function getFooterPeopleProfileSourcePaths() {
   const path = window.location.pathname.replace(/\\/g, '/');
-  const match = path.match(/\/people\/([^/]+)\/profile\.html$/);
+  const match = path.match(/\/people\/([^/]+)\/(?:index\.html|profile\.html)?$/);
   if (!match?.[1]) {
     return null;
   }

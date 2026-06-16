@@ -1560,7 +1560,7 @@ async function navigateToRandomProfile() {
     return;
   }
 
-  const currentProfileMatch = window.location.pathname.match(/\/people\/([^/]+)\/profile\.html$/);
+  const currentProfileMatch = window.location.pathname.match(/\/people\/([^/]+)\/(?:index\.html|profile\.html)?$/);
   const currentProfileId = currentProfileMatch?.[1] || null;
 
   let pool = candidates.filter((id) => id !== currentProfileId);
@@ -2263,7 +2263,40 @@ class FullHeader extends HTMLElement {
     this._openUserMenu = openUserMenu;
 
     const resolveSessionAvatar = async (user) => {
-      const sessionUser = normalizeHeaderUser(user || {});
+      let sessionUser = normalizeHeaderUser(user || {});
+
+      try {
+        if (typeof window.App?.findClaimedProfileForUser === 'function') {
+          const claimed = await window.App.findClaimedProfileForUser(sessionUser);
+          const givenName = String(claimed?.person?.firstName || '').trim();
+          const familyName = String(claimed?.person?.lastName || '').trim();
+
+          if (givenName || familyName) {
+            sessionUser = {
+              ...sessionUser,
+              givenName: givenName || sessionUser.givenName,
+              familyName: familyName || sessionUser.familyName,
+              displayName: [givenName, familyName].filter(Boolean).join(' ') || sessionUser.displayName,
+            };
+          } else if (claimed?.id && typeof window.App?.loadPersonCard === 'function') {
+            const card = await window.App.loadPersonCard(claimed.id);
+            const displayName = String(card?.name || '').trim();
+            if (displayName) {
+              const parts = displayName.split(/\s+/).filter(Boolean);
+              const nextGivenName = parts.shift() || sessionUser.givenName;
+              const nextFamilyName = parts.join(' ') || sessionUser.familyName;
+              sessionUser = {
+                ...sessionUser,
+                givenName: nextGivenName,
+                familyName: nextFamilyName,
+                displayName,
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Could not resolve the claimed Genepedia profile name for the signed-in user.', error);
+      }
 
       if (typeof window.App?.resolveOwnProfilePhotoUrl !== 'function') {
         return sessionUser;

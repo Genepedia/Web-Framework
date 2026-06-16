@@ -65,6 +65,19 @@ full-page-toolbar .people-page__title {
 	color: var(--page-toolbar-fg);
 }
 
+full-page-toolbar .people-page__title-link {
+	color: inherit;
+	text-decoration: none;
+	display: inline;
+	cursor: pointer;
+}
+
+full-page-toolbar .people-page__title-link:hover,
+full-page-toolbar .people-page__title-link:focus {
+    text-decoration: underline;
+    outline: none;
+}
+
 full-page-toolbar .people-page__edit-button {
 	display: inline-flex;
 	align-items: center;
@@ -380,7 +393,7 @@ full-page-toolbar:not([variant="people"]):not([variant="page"]):not([variant="no
 <section class="people-page" aria-label="Page header">
 	<div class="people-page__inner">
 		<div class="people-page__title-row">
-			<h1 class="people-page__title"></h1>
+			<h1 class="people-page__title"><a class="people-page__title-link" href="#" title="View profile"></a></h1>
 			<a class="people-page__edit-button" href="#" title="Edit profile">
 				<i class="bi bi-pencil-square" aria-hidden="true"></i>
 				<span class="people-page__edit-label">Edit Profile</span>
@@ -557,11 +570,27 @@ class FullPageToolbar extends HTMLElement {
 		const rawTitle = titleAttr ?? legacyTitleAttr;
 
 		if (titleEl) {
+			const titleLink = titleEl.querySelector('.people-page__title-link');
 			if (rawTitle !== null) {
 				const next = rawTitle.trim();
-				titleEl.textContent = next || (variant === 'people' ? '' : 'Untitled');
+				if (titleLink) {
+					titleLink.textContent = next || (variant === 'people' ? '' : 'Untitled');
+					try {
+						// Prefer a clean directory-style URL (strip index/profile filenames)
+						const href = window.location.href.replace(/(?:index|profile)\.html(?:#.*)?$/i, '');
+						titleLink.href = href;
+					} catch (e) {
+						// ignore
+					}
+				} else {
+					titleEl.textContent = next || (variant === 'people' ? '' : 'Untitled');
+				}
 			} else if (!titleEl.textContent?.trim() && variant !== 'people') {
-				titleEl.textContent = 'Untitled';
+				if (titleLink) {
+					titleLink.textContent = 'Untitled';
+				} else {
+					titleEl.textContent = 'Untitled';
+				}
 			}
 		}
 		const editHref = this.getAttribute('edit-href')?.trim() || '';
