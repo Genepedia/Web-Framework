@@ -39,7 +39,7 @@ body:not(.theme-dark) full-page-toolbar {
 
 full-page-toolbar .people-page__inner {
 	width: 100%;
-	max-width: var(--site-content-max-width, 90rem);
+	max-width: 100%;
 	margin: 0 auto;
 	padding: 1rem 1rem 0;
 	box-sizing: border-box;
