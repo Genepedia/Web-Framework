@@ -65,7 +65,9 @@ date-field-editor.is-between .date-field-editor__controls {
 date-field-editor.is-between .date-field-editor__range {
   display: grid;
   gap: 0.65rem;
-  width: min(100%, 20rem);
+  /* Wide enough to keep the date input, Circa checkbox and the parsed-date
+     preview on one line (the preview otherwise wraps below the field). */
+  width: min(100%, 34rem);
 }
 
 date-field-editor[layout="stacked"].is-between .date-field-editor__range {
@@ -504,7 +506,7 @@ class DateFieldEditor extends HTMLElement {
                   <i class="bi bi-calendar3" aria-hidden="true"></i>
                 </button>
               </span>
-              <label class="date-field-editor__circa pie__circa"><input type="checkbox" data-part="circa"${disabled ? ' disabled' : ''}> Circa</label>${fromPreviewMarkup}
+              <label class="date-field-editor__circa pie__circa"><input type="checkbox" data-part="circa"${disabled ? ' disabled' : ''}> Circa</label>${fromPreviewMarkup}${inlinePreviewMarkup}
             </div>
             <div class="date-field-editor__range-row pie__date-range-row date-field-editor__range-row--divider pie__date-range-row--divider">
               <span class="date-field-editor__and pie__date-and">and</span>
@@ -520,7 +522,6 @@ class DateFieldEditor extends HTMLElement {
               <label class="date-field-editor__circa pie__circa"><input type="checkbox" data-part="circaTo"${disabled ? ' disabled' : ''}> Circa</label>${toPreviewMarkup}
             </div>
           </div>
-          ${inlinePreviewMarkup}
         </div>
         ${showPreview && layout === 'stacked' ? `<p class="${previewClass}" data-role="preview"></p>` : ''}
       </div>
