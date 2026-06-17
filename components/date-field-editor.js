@@ -62,6 +62,13 @@ date-field-editor.is-between .date-field-editor__controls {
   align-items: start;
 }
 
+date-field-editor.is-between:not([layout="stacked"]) .date-field-editor__controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.5rem;
+  row-gap: 0.65rem;
+}
+
 date-field-editor.is-between .date-field-editor__range {
   display: grid;
   gap: 0.65rem;
@@ -72,6 +79,10 @@ date-field-editor.is-between .date-field-editor__range {
 
 date-field-editor[layout="stacked"].is-between .date-field-editor__range {
   width: 100%;
+}
+
+date-field-editor.is-between:not([layout="stacked"]) .date-field-editor__range {
+  min-width: 0;
 }
 
 date-field-editor.is-between .date-field-editor__range-row,
