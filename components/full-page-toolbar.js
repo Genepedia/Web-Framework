@@ -502,7 +502,7 @@ full-page-toolbar:not([variant="people"]):not([variant="page"]):not([variant="no
 
 class FullPageToolbar extends HTMLElement {
 	static get observedAttributes() {
-		return ['title', 'page-title', 'edit-href', 'edit-source', 'edit-content-selector', 'edit-text', 'variant'];
+		return ['title', 'page-title', 'edit-href', 'edit-source', 'edit-content-selector', 'edit-text', 'variant', 'edit-disabled'];
 	}
 
 	connectedCallback() {
@@ -618,7 +618,10 @@ class FullPageToolbar extends HTMLElement {
 		}
 
 		if (editButton) {
-			const shouldShowEdit = variant === 'people' || Boolean(editHref) || Boolean(editSource);
+			// `edit-disabled` suppresses the edit affordance entirely, e.g. when a
+			// private profile is blurred for a viewer who lacks access.
+			const editDisabled = this.hasAttribute('edit-disabled');
+			const shouldShowEdit = !editDisabled && (variant === 'people' || Boolean(editHref) || Boolean(editSource));
 			editButton.hidden = !shouldShowEdit;
 
 			let resolvedEditHref = editHref;
