@@ -115,8 +115,12 @@ body:not(.theme-dark) .page-footer {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
-  padding: 0.85rem 0;
+  /* Span the full footer width by cancelling the inner container's 1rem side
+     padding, so the hover highlight and divider run edge-to-edge. The matching
+     horizontal padding keeps the icon/text aligned with the rest of the footer. */
+  width: calc(100% + 2rem);
+  margin: 0 -1rem;
+  padding: 0.85rem 1rem;
   border: 0;
   border-bottom: 1px solid var(--page-footer-border);
   background: transparent;
@@ -257,14 +261,15 @@ body:not(.theme-dark) .page-footer__brand mini-header .localized-slogan {
   justify-content: center;
   width: 2.25rem;
   height: 2.25rem;
-  border: 1px solid var(--page-footer-border);
+  border: 1px solid var(--action-button-border, var(--page-footer-border));
   border-radius: 0.125rem;
+  background: var(--action-button-bg, transparent);
   color: var(--page-footer-fg);
   text-decoration: none;
 }
 
 .page-footer__social action-button .action-button__control:hover {
-  background: var(--page-footer-hover);
+  background: var(--action-button-bg-hover, var(--page-footer-hover));
   color: var(--page-footer-fg);
   text-decoration: none;
 }

@@ -1,5 +1,20 @@
 const ACTION_BUTTON_STYLE_ELEMENT_ID = 'action-button-styles';
 const ACTION_BUTTON_STYLES = String.raw`
+:root {
+  /* Canonical control-button surface colors. Every action-button consumer
+     (header, footer, toolbars) references these so all buttons match exactly.
+     These defaults are the dark theme; light overrides follow. */
+  --action-button-bg: #303235;
+  --action-button-bg-hover: #3d3e42;
+  --action-button-border: #525457;
+}
+
+body:not(.theme-dark) {
+  --action-button-bg: #f7f7f7;
+  --action-button-bg-hover: #ededed;
+  --action-button-border: #dbdbdb;
+}
+
 action-button {
   display: inline-flex;
   position: relative;

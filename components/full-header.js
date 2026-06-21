@@ -39,6 +39,11 @@ full-header {
   --header-chrome-menu-bg: #242629;
   --header-chrome-menu-border: rgba(255, 255, 255, 0.1);
   --header-chrome-dropdown-bg: #313438;
+  /* Opaque control-button surface, sourced from the shared action-button
+     component so every button across the site matches exactly. */
+  --header-chrome-control-bg: var(--action-button-bg, #303235);
+  --header-chrome-control-bg-hover: var(--action-button-bg-hover, #3d3e42);
+  --header-chrome-control-border: var(--action-button-border, #525457);
 }
 
 body:not(.theme-dark) full-header {
@@ -49,6 +54,9 @@ body:not(.theme-dark) full-header {
   --header-chrome-menu-bg: #ffffff;
   --header-chrome-menu-border: rgba(0, 0, 0, 0.12);
   --header-chrome-dropdown-bg: #ffffff;
+  --header-chrome-control-bg: var(--action-button-bg, #f7f7f7);
+  --header-chrome-control-bg-hover: var(--action-button-bg-hover, #ededed);
+  --header-chrome-control-border: var(--action-button-border, #dbdbdb);
 }
 
 body:not(.theme-dark) {
@@ -185,9 +193,9 @@ body:not(.theme-dark) .header-container.header-chrome {
   min-width: var(--header-chrome-control-height);
   max-width: 14em;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--header-chrome-control-border);
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--header-chrome-control-bg);
   color: var(--header-chrome-fg);
   cursor: pointer;
   white-space: nowrap;
@@ -340,8 +348,6 @@ body:not(.theme-dark) .header-chrome__brand mini-header .localized-slogan {
 
 body:not(.theme-dark) .header-chrome__login,
 body:not(.theme-dark) .header-chrome__user-trigger {
-  border-color: rgba(0, 0, 0, 0.14);
-  background: rgba(0, 0, 0, 0.03);
   color: #202122;
 }
 
@@ -422,24 +428,15 @@ body:not(.theme-dark) .header-chrome__user-trigger {
 
 .header-chrome__search-toggle {
   display: none;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--header-chrome-control-border);
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--header-chrome-control-bg);
   color: inherit;
   cursor: pointer;
 }
 
-body:not(.theme-dark) .header-chrome__search-toggle {
-  border-color: rgba(0, 0, 0, 0.12);
-  background: rgba(0, 0, 0, 0.03);
-}
-
 .header-chrome__search-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-body:not(.theme-dark) .header-chrome__search-toggle:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--header-chrome-control-bg-hover);
 }
 
 .header-chrome__search-toggle-icon--close {
@@ -455,7 +452,7 @@ full-header.search-open .header-chrome__search-toggle-icon--close {
 }
 
 .header-chrome__login:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--header-chrome-control-bg-hover);
 }
 
 .header-chrome__auth {
@@ -484,7 +481,7 @@ full-header[data-logged-in="false"] .header-chrome__notifications {
 
 .header-chrome__user-trigger:hover,
 .header-chrome__user-menu.is-open .header-chrome__user-trigger {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--header-chrome-control-bg-hover);
 }
 
 .header-chrome__user-avatar {
@@ -584,33 +581,30 @@ body:not(.theme-dark) .header-chrome__user-dropdown {
   min-height: 0;
   gap: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--header-chrome-control-border);
+  background: var(--header-chrome-control-bg);
   color: inherit;
   border-radius: 2px;
   box-sizing: border-box;
   font: inherit;
 }
 
-.header-chrome__notifications-trigger .action-button__control:hover { background: rgba(255,255,255,0.08) }
-
-body:not(.theme-dark) .header-chrome__notifications-trigger .action-button__control {
-  border-color: rgba(0, 0, 0, 0.14);
-  background: rgba(0, 0, 0, 0.03);
-}
+.header-chrome__notifications-trigger .action-button__control:hover { background: var(--header-chrome-control-bg-hover) }
 
     .header-chrome__notifications-trigger .action-button__badge {
-  /* smaller badge positioned inside the top-right of the button so it's closer to the icon */
+  /* red count badge positioned inside the top-right of the button so it's closer
+     to the icon; sized to match the family-tree node badge (.node__tree-badge) */
   position: absolute;
   top: 2px;
   right: 2px;
-  min-width: 14px;
-  height: 14px;
+  min-width: 16px;
+  height: 16px;
   padding: 0 4px;
   border-radius: 999px;
   background: #ff3b30;
   color: var(--color-inverted);
-  font-size: 0.65em;
+  font-size: 10px;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
