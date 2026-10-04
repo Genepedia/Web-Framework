@@ -1309,10 +1309,10 @@ function resolveHeaderGitHubApiUrl(fileName) {
   return new URL(fileName, `${apiBase}/`).href;
 }
 
-const FULL_HEADER_GITHUB_LOGIN_URL = resolveHeaderGitHubApiUrl('github-login.php');
-const FULL_HEADER_GITHUB_SESSION_URL = resolveHeaderGitHubApiUrl('github-session.php');
-const FULL_HEADER_GITHUB_LOGOUT_URL = resolveHeaderGitHubApiUrl('github-logout.php');
-const FULL_HEADER_GITHUB_HANDOFF_URL = resolveHeaderGitHubApiUrl('github-handoff.php');
+const FULL_HEADER_GITHUB_LOGIN_URL = resolveHeaderGitHubApiUrl('auth/github/login');
+const FULL_HEADER_GITHUB_SESSION_URL = resolveHeaderGitHubApiUrl('auth/session');
+const FULL_HEADER_GITHUB_LOGOUT_URL = resolveHeaderGitHubApiUrl('auth/logout');
+const FULL_HEADER_GITHUB_HANDOFF_URL = resolveHeaderGitHubApiUrl('auth/handoff');
 
 function resolveGitHubFetchInit(init) {
   if (window.App?.getGitHubFetchInit) {

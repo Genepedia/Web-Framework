@@ -1954,7 +1954,7 @@ class PageEditor extends HTMLElement {
   }
 
   async #fetchSession() {
-    const sessionUrl = resolveGitHubApiUrl('github-session.php');
+    const sessionUrl = resolveGitHubApiUrl('auth/session');
     if (!sessionUrl) return null;
     try {
       const response = await fetch(
@@ -3078,7 +3078,7 @@ class PageEditor extends HTMLElement {
   }
 
   async #submitPublish() {
-    const submitUrl = resolveGitHubApiUrl('github-submit-page-edit.php');
+    const submitUrl = resolveGitHubApiUrl('page-edits');
     if (!submitUrl) {
       this.#setStatus('GitHub API base is not configured.', 'error');
       return;

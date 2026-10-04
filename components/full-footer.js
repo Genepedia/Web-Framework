@@ -565,7 +565,7 @@ async function fetchLatestCommitForFile(sourcePaths) {
     return null;
   }
 
-  const url = new URL('github-file-commits.php', `${apiBase}/`);
+  const url = new URL('files/commits', `${apiBase}/`);
   if (paths.length === 1) {
     url.searchParams.set('path', paths[0]);
   } else {
