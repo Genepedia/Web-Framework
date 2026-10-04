@@ -2425,6 +2425,7 @@ class FullHeader extends HTMLElement {
       const response = await fetch(FULL_HEADER_GITHUB_HANDOFF_URL, {
         method: 'POST',
         cache: 'no-store',
+        credentials: 'include',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
@@ -2435,11 +2436,18 @@ class FullHeader extends HTMLElement {
       const payload = await response.json().catch(() => null);
       stripGitHubAuthQueryParams();
 
-      if (!response.ok || !payload?.authenticated || !payload.user || !payload.access_token) {
-        throw new Error(payload?.message || 'GitHub login could not be completed.');
+      const authType = String(
+        payload?.auth_type
+        || payload?.user?.auth_type
+        || (String(payload?.user?.id || '').startsWith('local:') ? 'local' : 'github')
+      ).toLowerCase();
+      const isLocalLogin = authType === 'local';
+
+      if (!response.ok || !payload?.authenticated || !payload.user || (!isLocalLogin && !payload.access_token)) {
+        throw new Error(payload?.message || 'Sign-in could not be completed.');
       }
 
-      writeSession(payload.user, payload.access_token);
+      writeSession(payload.user, isLocalLogin ? '' : payload.access_token);
       setLoggedIn(true, payload.user);
       return true;
     };
